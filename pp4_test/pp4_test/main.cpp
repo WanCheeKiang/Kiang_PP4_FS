@@ -35,7 +35,6 @@ IDXGIKeyedMutex *keyedMutex11 = nullptr;
 IDXGIKeyedMutex *keyedMutex10 = nullptr;
 ID2D1RenderTarget *D2D_RT = nullptr;
 ID2D1SolidColorBrush *Brush = nullptr;
-ID3D11Texture2D *BackBuffer11 = nullptr;
 ID3D11Texture2D *sharedTex11 = nullptr;
 ID3D11Buffer *d2d_VertBuffer = nullptr;
 ID3D11Buffer *d2d_IndexBuffer = nullptr;
@@ -51,7 +50,7 @@ HWND g_hwindow = nullptr;
 HRESULT hr;
 HINSTANCE g_hInst = nullptr;
 XMMATRIX WVP;
-XMMATRIX World1;
+XMMATRIX World;
 XMMATRIX View;
 XMMATRIX Projection;
 
@@ -83,7 +82,6 @@ HRESULT InitDevice();
 void ProcessFbxMesh(FbxNode* Node);
 void Compactify();
 void UpdateCamera();
-void Draw();
 void GetKey();
 void Render();
 void CleanUp();
@@ -95,15 +93,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 ConstantBuffer cbPerOBj;
 Light light;
 cbPerFrame constBufferPF;
-
-D3D11_INPUT_ELEMENT_DESC layout[] =
-{
-	  { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "NORMAL",     0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}
-};
-
-UINT numElements = ARRAYSIZE(layout);
 
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
@@ -420,9 +409,9 @@ HRESULT InitDevice()
 	// Define the input layout
 	D3D11_INPUT_ELEMENT_DESC layout[] =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{"TEXCOORD0", 0, DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA ,0}
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,0,D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA ,0}
 	};
 	UINT numElements = ARRAYSIZE(layout);
 
@@ -438,7 +427,7 @@ HRESULT InitDevice()
 
 	// Compile the pixel shader
 	ID3DBlob* pPSBlob = nullptr;
-	hr = CompileShader(L"Light_PS.hlsl", "DirectionalLightPS", "ps_4_0", &pPSBlob);
+	hr = CompileShader(L"Light_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	if (FAILED(hr))
 	{
 		MessageBox(nullptr,
@@ -557,8 +546,8 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 		return hr;
 	// Initialize the world matrices
-	WVP = XMMatrixIdentity();
-
+	World = XMMatrixIdentity();
+	
 	// Initialize the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
 	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
@@ -570,10 +559,7 @@ HRESULT InitDevice()
 
 	return S_OK;
 }
-void Draw()
-{
 
-}
 void UpdateCamera()
 {
 	
@@ -894,7 +880,6 @@ void CleanUp()
 	if(keyedMutex10)keyedMutex10->Release();
 	if(D2D_RT)D2D_RT->Release();
 	if(Brush)Brush->Release();
-	if(BackBuffer11)BackBuffer11->Release();
 	if(sharedTex11)sharedTex11->Release();
 	if(d2dTex)d2dTex->Release();
 	///////////////**************new**************////////////////////
@@ -948,17 +933,8 @@ void Render()
 	GetKey();
 
 	// Rotate cube around the origin
-	WVP = XMMatrixRotationY(t);
+	World = XMMatrixRotationY(t);
 
-	// Setup our lighting parameters
-	
-
-	// Rotate the second light around the origin
-	/*XMMATRIX mRotate = XMMatrixRotationY(-2.0f * t);
-	XMVECTOR vLightDir = XMLoadFloat4(&LightDirs[1]);g_DevContext
-	vLightDir = XMVector3Transform(vLightDir, mRotate);
-	XMStoreFloat4(&LightDirs[1], vLightDir);
-*/
 	// Clear the back buffer
 	g_DevContext->ClearRenderTargetView(g_rtv, Colors::MidnightBlue);
 
@@ -967,7 +943,7 @@ void Render()
 
 	// Update matrix variables and lighting variables
 	//light.dir = XMFLOAT4(0.25f, 0.5f, -1.0f);
-	light.dir = XMFLOAT4(0.0f, 0.0f, -1.0f, 1.0f);
+	light.dir = XMFLOAT4(0.25f, 0.5f, 1.0f, 1.0f);
 	light.ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
 	light.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
@@ -976,15 +952,16 @@ void Render()
 
 
 	ConstantBuffer cb1;
-	cb1.mWorld = XMMatrixTranspose(WVP);
+	cb1.mWorld = XMMatrixTranspose(World);
 	cb1.mView = XMMatrixTranspose(View);
 	cb1.mProjection = XMMatrixTranspose(Projection);
-	
+	cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
+	cb1.directLight = light;
+
 	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
 	g_DevContext->VSSetShader(g_VS, 0, 0);
 	g_DevContext->PSSetShader(g_PS, 0, 0);
-	// Render the cube
-	//
+	// Render 
 	g_DevContext->VSSetShader(g_VS, nullptr, 0);
 	g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
 	g_DevContext->PSSetShader(g_PS, nullptr, 0);
@@ -994,19 +971,18 @@ void Render()
 	g_DevContext->PSSetShaderResources(0, 1, &SRV_tex);
 	//
 	// Render each light
-	//marking where the lights come from
-	//for (int m = 0; m < 2; m++)
-	//{
+	
 	XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&light.dir));
 	XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
 	mLight = mLightScale * mLight;
 
 	//	// Update the world variable to reflect the current light
 	cb1.mWorld = XMMatrixTranspose(mLight);
+	cb1.outputColor = light.ambient;
 	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
 	g_DevContext->PSSetShader(g_PS_Solid, nullptr, 0);
 	g_DevContext->DrawIndexed(numIndices, 0, 0);
-	//}
+
 
 	// Present our back buffer to our front buffer
 	

@@ -10,22 +10,23 @@ struct Light
 	float4 diffuse;
 };
 
-cbuffer cbPerFrame
+cbuffer cbPerFrame : register(b1)
 {
 	Light light;
 };
 
-cbuffer cbPerObject
-{
-	float4x4 WVP;
-	float4x4 World;
-};
+//cbuffer cbPerObject
+//{
+//	float4x4 WVP;
+//	float4x4 World;
+//};
 
-cbuffer ConstantBuffer
+cbuffer ConstantBuffer : register(b0)
 {
 	matrix mWorld;
 	matrix mView;
 	matrix mProjection;
+	float4 outputColor;
 
 };
 Texture2D ObjTexture;
@@ -35,14 +36,14 @@ struct VS_INPUT
 {
 	float4 Pos : POSITION;
 	float3 Normal : NORMAL;
-	float2 TexCoord : TEXCOORD0;
+	float2 TexCoord : TEXCOORD;
 };
 struct VS_OUTPUT
 {
 	float4 Pos : SV_POSITION;
 	float3 Normal : NORMAL;	
-	float2 TexCoord : TEXCOORD0;
-	float3 WorldPos : TEXCOORD1;
+	float2 TexCoord : TEXCOORD;
+	float3 WorldPos : WORLDPOS;
 
 };
 
@@ -50,10 +51,10 @@ VS_OUTPUT VS(VS_INPUT input)
 {
 	VS_OUTPUT output = (VS_OUTPUT)0;
 
-	output.Pos = mul(input.Pos, WVP);
+	output.Pos = mul(float4(input.Pos.xyz, 1), mWorld);
 	output.Pos = mul(output.Pos, mView);
 	output.Pos = mul(output.Pos, mProjection);
-	output.Normal = mul(float4(input.Normal,1), World).xyz;
+	output.Normal = mul(float4(input.Normal,0), mWorld).xyz;
 
 	output.TexCoord = input.TexCoord;
 

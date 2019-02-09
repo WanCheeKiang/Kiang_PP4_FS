@@ -26,17 +26,8 @@ using namespace std;
 struct Vertex
 {
 	XMFLOAT4 pos;
-	XMFLOAT4 color;
-	XMFLOAT2 Texture;
 	XMFLOAT3 normal;
-};
-
-struct ConstantBuffer
-{
-	XMMATRIX mWorld;
-	XMMATRIX mView;
-	XMMATRIX mProjection;
-	
+	XMFLOAT2 Texture;
 };
 
 struct Light
@@ -46,14 +37,26 @@ struct Light
 		ZeroMemory(this, sizeof(Light));
 	}
 	XMFLOAT4 dir;
-	XMFLOAT4 ambient;//周圍環境條件 || surrounding area
-	XMFLOAT4 diffuse;//漫射 ||spread
-	XMFLOAT4 Color;
+	XMFLOAT4 ambient;//周圍環境條件 
+	XMFLOAT4 diffuse;//漫射 
+
 };
 struct cbPerFrame
 {
 	Light light;
 };
+
+
+struct ConstantBuffer
+{
+	XMMATRIX mWorld;
+	XMMATRIX mView;
+	XMMATRIX mProjection;
+	XMFLOAT4 outputColor;
+	Light directLight;
+	
+};
+
 
 struct cbPerObject
 {
