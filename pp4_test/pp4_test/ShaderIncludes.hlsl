@@ -24,5 +24,7 @@ struct SpotLight
 	float3 dir;
 	float range;
 	float3 pos;
-	float cone;
+	float InConeRatio;
+    float OutConeRatio;
+    float3 align;
 };

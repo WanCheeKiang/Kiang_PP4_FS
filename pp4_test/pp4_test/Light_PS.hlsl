@@ -40,7 +40,7 @@ float4 main(PS_INPUT input) : SV_TARGET
         float distance = length(dir);
         dir = normalize(dir);
 
-        float amountLight = dot(dir, input.Normal);
+        float amountLight = saturate(dot(dir, input.Normal));
 
         if (amountLight > 0.0f)
         {
@@ -48,9 +48,30 @@ float4 main(PS_INPUT input) : SV_TARGET
             finalColor += amountLight * diffuse * ptLight.diffuse * attenuation;
         }
     }
-    finalColor.a = diffuse.a;
-    return float4(finalColor);
-}
+	//spot light
+	{
+        float3 dir = (stLight.pos - input.WorldPos);
+        float distance = length(dir);
+        dir = normalize(dir);
+        float surfaceRatio = saturate(dot(-dir, normalize(stLight.dir)));
+        float amountLight = saturate(dot(dir, input.Normal));
+		
+        if (amountLight > 0.0f)
+        {
+            float attenuation1 = 1.0f - saturate(distance / stLight.range);
+            float attenuation2 = 1.0f - saturate((stLight.InConeRatio - surfaceRatio) / (stLight.InConeRatio - stLight.OutConeRatio));
+            finalColor += amountLight * diffuse * stLight.diffuse * attenuation1 * attenuation2;
+        }
+
+
+    }
+        finalColor.a = diffuse.a;
+
+        finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
+
+
+        return float4(finalColor);
+    }
 
 //float4 main2(PS_INPUT input) : SV_TARGET
 //{

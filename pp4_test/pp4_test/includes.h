@@ -98,7 +98,9 @@ struct SpotLight
 	XMFLOAT3 dir;
 	float range;
 	XMFLOAT3 pos;
-	float cone;
+	float InConeRatio;
+	float OutConeRatio;
+	XMFLOAT3 align;
 };
 
 struct cbPerFrame
@@ -132,6 +134,12 @@ struct ModelBuffer
 	int indexCount;
 	Transform transform;
 
+	ModelBuffer()
+	{
+		VertBuffer = nullptr;
+		IndexBuffer = nullptr;
+		srv = nullptr;
+	}
 };
 
 struct ModelImport

@@ -67,9 +67,9 @@ void ProcessFbxMesh(FbxNode* Node, ModelImport* Model);
 void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model);
 XMMATRIX UpdateCamera();
 void GetKey();
+ModelImport MakeGrid(int width, int height);
 ModelImport ImportFbxModel(const char* FileName);
-
-ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName);
+ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName = nullptr);
 ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
 void Render();
 void CleanUp();
@@ -84,6 +84,7 @@ cbPerFrame constBufferPF;
 
 ID3D11ShaderResourceView* obj_srv;
 vector<ModelBuffer*> models;
+vector<ModelBuffer*> lineModels;
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
@@ -434,12 +435,13 @@ HRESULT InitDevice()
 
 	models.push_back(CreateModelBuffer(ImportFbxModel("Axe Asset\\Axe_1.fbx"), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(CreateModelBuffer(LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
+	lineModels.push_back(CreateModelBuffer(MakeGrid(15, 15), nullptr));
+	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 	models[0]->transform.pos = XMVectorSet(-2.0f, 0.0f, 0.0f, 1.0f);
 	models[1]->transform.pos = XMVectorSet(3.0f, 0.0f, 0.0f, 1.0f);
 
 	D3D11_BUFFER_DESC bd = {};
 	// Set primitive topology
-	g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Create the constant buffer
 	bd.Usage = D3D11_USAGE_DEFAULT;
@@ -513,10 +515,11 @@ ModelBuffer* CreateModelBuffer(ModelImport model, const wchar_t* TextureName)
 	bd.CPUAccessFlags = 0;
 	initData.pSysMem = model.indices.data();
 	g_Device->CreateBuffer(&bd, &initData, &buffer->IndexBuffer);
-
-	CreateDDSTextureFromFile(g_Device, TextureName, nullptr, &buffer->srv);
+	if (TextureName != nullptr)
+		CreateDDSTextureFromFile(g_Device, TextureName, nullptr, &buffer->srv);
 
 	return buffer;
+
 
 }
 XMMATRIX UpdateCamera()
@@ -552,6 +555,43 @@ void GetKey()
 		yValue -= timer.Delta()*45.f;
 
 	}
+}
+ModelImport MakeGrid(int width, int height)
+{
+	ModelImport model;
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
+			Vertex v;
+			v.normal = XMFLOAT3(0.f, 1.f, 0.f);
+			v.Texture.x = i / (width - 1);
+			v.Texture.y = j / (height - 1);
+			v.pos.x = -0.5f + ((float)i / (width - 1));
+			v.pos.y = 0.0f;
+			v.pos.z = -0.5f + ((float)j / (height - 1));
+
+			model.vertices.push_back(v);
+		}
+	}
+
+	for (int i = 0; i < height; i++)
+	{
+		int start = i;
+		int end = (width - 1)*height + i;
+		model.indices.push_back(start);
+		model.indices.push_back(end);
+	}
+
+	for (int i = 0; i < width; i++)
+	{
+		int start = i * height;
+		int end = height - 1 + i * height;
+		model.indices.push_back(start);
+		model.indices.push_back(end);
+	}
+
+	return model;
 }
 ModelImport ImportFbxModel(const char* FileName)
 {
@@ -900,9 +940,27 @@ void CleanUp()
 	{
 		if (models[i])
 		{
-			models[i]->IndexBuffer->Release();
-			models[i]->VertBuffer->Release();
+			if (models[i]->IndexBuffer)
+				models[i]->IndexBuffer->Release();
+			if (models[i]->VertBuffer)
+				models[i]->VertBuffer->Release();
+			if (models[i]->srv)
+				models[i]->srv->Release();
 			delete models[i];
+		}
+	}
+
+	for (int i = 0; i < lineModels.size(); i++)
+	{
+		if (lineModels[i])
+		{
+			if (lineModels[i]->IndexBuffer)
+				lineModels[i]->IndexBuffer->Release();
+			if (lineModels[i]->VertBuffer)
+				lineModels[i]->VertBuffer->Release();
+			if (lineModels[i]->srv)
+				lineModels[i]->srv->Release();
+			delete lineModels[i];
 		}
 	}
 
@@ -962,30 +1020,25 @@ void Render()
 
 
 	//Point Light
-	Ptlight.range = 10.0f;
-	Ptlight.diffuse = XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
+	Ptlight.range = 5.0f;
+	Ptlight.diffuse = XMFLOAT4(0.0f, 4.0f, 0.0f, 1.0f);
 
 	//update pointlight position
-	XMVECTOR LightVec = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	//0,0,0,0
+	XMVECTOR LightVec = XMVectorSet(1.0f, 3.0f, -0.5f, 0.0f);
 	XMStoreFloat3(&Ptlight.pos, LightVec);
 
 
 	//Spot Light
-	StLight.pos = XMFLOAT3(0.0f, 1.0f, 0.0f);
-	StLight.dir = XMFLOAT3(0.0f, 0.0f, 1.0f);
-	StLight.range = 1000.0f;
-	StLight.cone = 20.0f;
+	StLight.pos = XMFLOAT3(5.0f, 3.0f, 0.0f);
+	StLight.dir = XMFLOAT3(-5.0f, -3.0f, 0.0f);
+	StLight.range = 20.0f;
+	StLight.InConeRatio = XMConvertToRadians(30.0f);
+	StLight.OutConeRatio = XMConvertToRadians(60.0f);
 
-	StLight.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
-	//Update spot light pos && dir
-	//StLight.pos.x = XMVectorGetX(Camera_pos);
-	//StLight.pos.y = XMVectorGetY(Camera_pos);
-	//StLight.pos.z = XMVectorGetZ(Camera_pos);
-	//StLight.dir.x = XMVectorGetX(Camera_Target) - StLight.pos.x;
-	//StLight.dir.y = XMVectorGetY(Camera_Target) - StLight.pos.y;
-	//StLight.dir.z = XMVectorGetZ(Camera_Target) - StLight.pos.z;
+	StLight.diffuse = XMFLOAT4(3.0f, 0.0f, 0.0f, 1.0f);
 
-	
+
 	constBufferPF.directLight = Dirlight;
 	constBufferPF.ptLight = Ptlight;
 	constBufferPF.stLight = StLight;
@@ -993,7 +1046,7 @@ void Render()
 	g_DevContext->UpdateSubresource(cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
 
 
-	
+
 
 	CBufferPerObject cb1;
 	for (int i = 0; i < models.size(); i++)
@@ -1003,6 +1056,7 @@ void Render()
 		g_DevContext->IASetIndexBuffer(models[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
 		g_DevContext->IASetVertexBuffers(0, 1, &models[i]->VertBuffer, &stride, &offset);
 
+		g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 		cb1.mWorld = XMMatrixTranspose(models[i]->transform.createMatrix());
 		cb1.mView = XMMatrixTranspose(View);
 		cb1.mProjection = XMMatrixTranspose(Projection);
@@ -1016,13 +1070,40 @@ void Render()
 		g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
 		g_DevContext->VSSetConstantBuffers(1, 1, &cbPFbuffer);
 		g_DevContext->PSSetConstantBuffers(1, 1, &cbPFbuffer);
-		
+
 		g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
 		g_DevContext->PSSetShaderResources(0, 1, &models[i]->srv);
 		g_DevContext->DrawIndexed(models[i]->indexCount, 0, 0);
 
 	}
 
+	for (int i = 0; i < lineModels.size(); i++)
+	{
+		UINT stride = sizeof(Vertex);
+		UINT offset = 0;
+		g_DevContext->IASetIndexBuffer(lineModels[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
+		g_DevContext->IASetVertexBuffers(0, 1, &lineModels[i]->VertBuffer, &stride, &offset);
+		g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+
+		cb1.mWorld = XMMatrixTranspose(lineModels[i]->transform.createMatrix());
+		cb1.mView = XMMatrixTranspose(View);
+		cb1.mProjection = XMMatrixTranspose(Projection);
+		cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
+		g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
+
+		// Render  the axe
+		g_DevContext->VSSetShader(g_VS, nullptr, 0);
+		g_DevContext->PSSetShader(g_PS, nullptr, 0);
+		g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
+		g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
+		g_DevContext->VSSetConstantBuffers(1, 1, &cbPFbuffer);
+		g_DevContext->PSSetConstantBuffers(1, 1, &cbPFbuffer);
+
+		g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
+		g_DevContext->DrawIndexed(lineModels[i]->indexCount, 0, 0);
+
+	}
 	//	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
 
 

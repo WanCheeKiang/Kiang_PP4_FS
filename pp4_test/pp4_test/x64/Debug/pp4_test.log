@@ -1,14 +1,16 @@
 ﻿  main.cpp
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(494): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(495): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(500): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(511): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(535): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(540): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(546): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(552): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(850): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(860): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(948): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(992): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(496): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(497): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(502): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(513): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(538): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(543): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(549): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(555): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(568): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(569): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(890): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(900): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1006): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1045): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
   pp4_test.vcxproj -> C:\Users\Kiang Wan Chee\Documents\PP4\pp4_test\x64\Debug\pp4_test.exe
