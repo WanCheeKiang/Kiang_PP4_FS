@@ -1,18 +1,13 @@
-[numthreads(1, 1, 1)]
-void main( uint3 DTid : SV_DispatchThreadID )
-{
-}
+#include "ShaderIncludes.hlsl"
 
-struct Light
+cbuffer cbPerFrame :register(b1)
 {
-	float3 dir;
-	float4 ambient;
-	float4 diffuse;
-};
+	DirectionalLight directLight;
+	PointLight ptLight;
+	SpotLight stLight;
+	float time;
+	float3 align;
 
-cbuffer cbPerFrame : register(b1)
-{
-	Light light;
 };
 
 //cbuffer cbPerObject
@@ -47,14 +42,15 @@ struct VS_OUTPUT
 
 };
 
-VS_OUTPUT VS(VS_INPUT input)
+VS_OUTPUT main(VS_INPUT input)
 {
 	VS_OUTPUT output = (VS_OUTPUT)0;
 
 	output.Pos = mul(float4(input.Pos.xyz, 1), mWorld);
+    output.WorldPos = output.Pos.xyz;
 	output.Pos = mul(output.Pos, mView);
 	output.Pos = mul(output.Pos, mProjection);
-	output.Normal = mul(float4(input.Normal,0), mWorld).xyz;
+	output.Normal = mul(float4(input.Normal,0), (mWorld)).xyz;
 
 	output.TexCoord = input.TexCoord;
 

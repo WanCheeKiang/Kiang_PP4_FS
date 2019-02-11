@@ -1,3 +1,10 @@
 ﻿  main.cpp
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(545): warning C4316: 'ModelBuffer': object allocated on the heap may not be aligned 16
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(590): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(595): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(601): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(607): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(954): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1057): warning C4018: '<': signed/unsigned mismatch
 DDSTextureLoader.obj : warning LNK4075: ignoring '/EDITANDCONTINUE' due to '/INCREMENTAL:NO' specification
   pp4_test.vcxproj -> C:\Users\Kiang Wan Chee\Documents\PP4\pp4_test\Debug\pp4_test.exe

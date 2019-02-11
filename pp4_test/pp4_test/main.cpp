@@ -17,6 +17,8 @@ ID3D11PixelShader*      g_PS_Solid = nullptr;
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
 ID3D11Buffer* g_cbPerObjBuffer = nullptr;
+ID3D11Buffer* obj_VertBuffer = nullptr;
+ID3D11Buffer* obj_IndexBuffer = nullptr;
 //State
 ID3D11BlendState* Transparency = nullptr;
 ID3D11RasterizerState* CCWcullMode = nullptr;
@@ -27,19 +29,9 @@ ID3D11SamplerState* g_SamplerState = nullptr;
 //d2d
 ID3D11Buffer* cbPFbuffer; //constant buffer oer frame buffer
 
-//
 ID3D10Device1 *g_Device1 = nullptr;
 ID3D11DeviceContext1*   g_DevContext1 = nullptr;
 IDXGISwapChain1*        g_SwapChain1 = nullptr;
-IDXGIKeyedMutex *keyedMutex11 = nullptr;
-IDXGIKeyedMutex *keyedMutex10 = nullptr;
-ID2D1RenderTarget *D2D_RT = nullptr;
-ID2D1SolidColorBrush *Brush = nullptr;
-ID3D11Texture2D *sharedTex11 = nullptr;
-ID3D11Buffer *d2d_VertBuffer = nullptr;
-ID3D11Buffer *d2d_IndexBuffer = nullptr;
-ID3D11ShaderResourceView *d2dTex = nullptr;
-
 
 D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL;
 D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_11_0;
@@ -50,28 +42,20 @@ HWND g_hwindow = nullptr;
 HRESULT hr;
 HINSTANCE g_hInst = nullptr;
 XMMATRIX WVP;
-XMMATRIX World;
 XMMATRIX View;
 XMMATRIX Projection;
 
-XMMATRIX d2d_World;
-
-XMVECTOR Cmaera_pos;
+XMMATRIX Camera;
+XMVECTOR Camera_pos;
 XMVECTOR Camera_Target;
 XMVECTOR Camera_up;
 
-XMMATRIX Rotation;
-XMMATRIX Scale;
-XMMATRIX Translation;
 
 float rotate = 0.01f;
-
+XTime timer;
 
 // count
-Vertex *vertices;
-int numVertices = 0;
-int *indices;
-int numIndices = 0;
+
 float scale = 5.0f;
 float xValue = 0.0f;
 float yValue = 0.0f;
@@ -79,21 +63,27 @@ float yValue = 0.0f;
 HRESULT CompileShader(_In_ LPCWSTR srcFile, _In_ LPCSTR entryPoint, _In_ LPCSTR profile, _Outptr_ ID3DBlob** blob);
 HRESULT InitWindow(HINSTANCE hInstance, int nCmdShow);
 HRESULT InitDevice();
-void ProcessFbxMesh(FbxNode* Node);
-void Compactify();
-void UpdateCamera();
+void ProcessFbxMesh(FbxNode* Node, ModelImport* Model);
+void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model);
+XMMATRIX UpdateCamera();
 void GetKey();
+ModelImport ImportFbxModel(const char* FileName);
+
+ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName);
+ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
 void Render();
 void CleanUp();
 
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
 //Variables
-ConstantBuffer cbPerOBj;
-Light light;
+CBufferPerObject cbPerOBj;
+DirectionalLight Dirlight;
+PointLight Ptlight;
+SpotLight StLight;
 cbPerFrame constBufferPF;
 
+ID3D11ShaderResourceView* obj_srv;
+vector<ModelBuffer*> models;
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
@@ -390,7 +380,7 @@ HRESULT InitDevice()
 
 	// Compile the vertex shader
 	ID3DBlob* pVSBlob = nullptr;
-	hr = CompileShader(L"Light_VS.hlsl", "VS", "vs_4_0", &pVSBlob);
+	hr = CompileShader(L"Light_VS.hlsl", "main", "vs_4_0", &pVSBlob);
 	if (FAILED(hr))
 	{
 		MessageBox(nullptr,
@@ -441,21 +431,133 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 		return hr;
 
-	// Compile the pixel shader
-	pPSBlob = nullptr;
-	hr = CompileShader(L"Light_PS.hlsl", "PSsolid", "ps_4_0", &pPSBlob);
-	if (FAILED(hr))
-	{
-		MessageBox(nullptr,
-			"The hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
-		return hr;
-	}
 
-	// Create the pixel shader
-	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_PS_Solid);
-	pPSBlob->Release();
-	//
-	const char* lFilename = "Axe Asset\\Axe.fbx";
+	models.push_back(CreateModelBuffer(ImportFbxModel("Axe Asset\\Axe_1.fbx"), L"Axe Asset\\axeTexture.dds"));
+	models.push_back(CreateModelBuffer(LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
+	models[0]->transform.pos = XMVectorSet(-2.0f, 0.0f, 0.0f, 1.0f);
+	models[1]->transform.pos = XMVectorSet(3.0f, 0.0f, 0.0f, 1.0f);
+
+	D3D11_BUFFER_DESC bd = {};
+	// Set primitive topology
+	g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// Create the constant buffer
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(CBufferPerObject);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bd.CPUAccessFlags = 0;
+	hr = g_Device->CreateBuffer(&bd, nullptr, &g_cbPerObjBuffer);
+
+	//create buffer for cbpf
+
+	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(CBufferPerObject);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bd.CPUAccessFlags = 0;
+	bd.MiscFlags = 0;
+
+	hr = g_Device->CreateBuffer(&bd, nullptr, &cbPFbuffer);
+	if (FAILED(hr))
+		return hr;
+
+	//create sample state
+	D3D11_SAMPLER_DESC SampDesc = {};
+	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	SampDesc.MinLOD = 0;
+	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = g_Device->CreateSamplerState(&SampDesc, &g_SamplerState);
+	if (FAILED(hr))
+		return hr;
+	// Initialize the world matrices
+	Camera = XMMatrixIdentity();
+
+	// Initialize the view matrix
+	XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
+	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	View = XMMatrixLookAtLH(Eye, At, Up);
+
+	// Initialize the projection matrix
+	Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
+
+	return S_OK;
+}
+
+ModelBuffer* CreateModelBuffer(ModelImport model, const wchar_t* TextureName)
+{
+	ModelBuffer* buffer = new ModelBuffer;
+	buffer->indexCount = model.indices.size();
+	buffer->vertCount = model.vertices.size();
+
+	D3D11_BUFFER_DESC bd = {};
+	//set vertex buffer
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(Vertex)*model.vertices.size();
+	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+
+	D3D11_SUBRESOURCE_DATA initData = {};
+	initData.pSysMem = model.vertices.data();
+	g_Device->CreateBuffer(&bd, &initData, &buffer->VertBuffer);
+
+
+	//set index buffer
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(int)*model.indices.size();
+	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bd.CPUAccessFlags = 0;
+	initData.pSysMem = model.indices.data();
+	g_Device->CreateBuffer(&bd, &initData, &buffer->IndexBuffer);
+
+	CreateDDSTextureFromFile(g_Device, TextureName, nullptr, &buffer->srv);
+
+	return buffer;
+
+}
+XMMATRIX UpdateCamera()
+{
+	XMMATRIX xRotattion = XMMatrixRotationX(xValue);
+	XMMATRIX yRotattion = XMMatrixRotationY(yValue);
+	XMMATRIX Trans = XMMatrixTranslation(0.0f, 0.0f, -1.0f);
+	return XMMatrixMultiply(Trans, XMMatrixMultiply(xRotattion, yRotattion));
+}
+void GetKey()
+{
+
+	if (GetAsyncKeyState('W'))
+	{
+		//up
+		xValue += timer.Delta()*45.f;
+	}
+	if (GetAsyncKeyState('S'))
+	{
+		//down
+		xValue -= timer.Delta()*45.f;
+	}
+	if (GetAsyncKeyState('A'))
+	{
+
+		//left
+		yValue += timer.Delta()*45.f;
+	}
+	if (GetAsyncKeyState('D'))
+	{
+
+		//right
+		yValue -= timer.Delta()*45.f;
+
+	}
+}
+ModelImport ImportFbxModel(const char* FileName)
+{
+
+	ModelImport model;
+	const char* lFilename = FileName;// "Axe Asset\\Axe_1.fbx";
 
 	FbxManager* lSdkManager = FbxManager::Create();
 	FbxIOSettings *ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
@@ -472,128 +574,46 @@ HRESULT InitDevice()
 	FbxScene* lScene = FbxScene::Create(lSdkManager, "myScene");
 	lImporter->Import(lScene);
 	lImporter->Destroy();
-	ProcessFbxMesh(lScene->GetRootNode());
-	if (FAILED(hr))
-		return hr;
+	ProcessFbxMesh(lScene->GetRootNode(), &model);
 
-
-	D3D11_BUFFER_DESC bd = {};
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(Vertex) * numVertices;
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-
-	D3D11_SUBRESOURCE_DATA InitData = {};
-	InitData.pSysMem = vertices;
-	hr = g_Device->CreateBuffer(&bd, &InitData, &g_vertBuffer);
-	if (FAILED(hr))
-		return hr;
-
-	// Set vertex buffer
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	g_DevContext->IASetVertexBuffers(0, 1, &g_vertBuffer, &stride, &offset);
-
-	// Create index buffer
-	// Create vertex buffer
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(int) * numIndices;        // 36 vertices needed for 12 triangles in a triangle list
-	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-	InitData.pSysMem = indices;
-	hr = g_Device->CreateBuffer(&bd, &InitData, &g_indexBUffer);
-	if (FAILED(hr))
-		return hr;
-
-	// Set index buffer
-	g_DevContext->IASetIndexBuffer(g_indexBUffer, DXGI_FORMAT_R32_UINT, 0);
-
-	// Set primitive topology
-	g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	// Create the constant buffer
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(ConstantBuffer);
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bd.CPUAccessFlags = 0;
-	hr = g_Device->CreateBuffer(&bd, nullptr, &g_cbPerObjBuffer);
-
-	//create buffer for cbpf
-
-	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(ConstantBuffer);
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bd.CPUAccessFlags = 0;
-	bd.MiscFlags = 0;
-
-	hr = g_Device->CreateBuffer(&bd, nullptr, &cbPFbuffer);
-	if (FAILED(hr))
-		return hr;
-	//load texture
-	hr = CreateDDSTextureFromFile(g_Device, L"Axe Asset\\axeTexture.dds", nullptr, &SRV_tex);
-
-	//create sample state
-	D3D11_SAMPLER_DESC SampDesc = {};
-	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
-	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
-	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
-	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	SampDesc.MinLOD = 0;
-	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = g_Device->CreateSamplerState(&SampDesc, &g_SamplerState);
-	if (FAILED(hr))
-		return hr;
-	// Initialize the world matrices
-	World = XMMatrixIdentity();
-	
-	// Initialize the view matrix
-	XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
-	XMVECTOR At = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	XMVECTOR Up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	View = XMMatrixLookAtLH(Eye, At, Up);
-
-	// Initialize the projection matrix
-	Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
-
-	return S_OK;
+	return model;
 }
 
-void UpdateCamera()
+ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices)
 {
-	
+
+	ModelImport model;
+	model.indices.resize(numIndices);
+	model.vertices.resize(numVertices);
+
+
+	float objScale = 0.5f;
+
+	for (int i = 0; i < numVertices; i++)
+	{
+
+		model.vertices[i].pos.x = verts[i].pos[0] * objScale;
+		model.vertices[i].pos.y = verts[i].pos[1] * objScale;
+		model.vertices[i].pos.z = verts[i].pos[2] * objScale;
+		model.vertices[i].pos.w = 1.0f;
+		model.vertices[i].normal.x = verts[i].nrm[0];
+		model.vertices[i].normal.y = verts[i].nrm[1];
+		model.vertices[i].normal.z = verts[i].nrm[2];
+
+		model.vertices[i].Texture.x = verts[i].uvw[0];
+		model.vertices[i].Texture.y = verts[i].uvw[1];
+
+	}
+
+	for (int i = 0; i < numIndices; i++)
+	{
+		model.indices[i] = indices[i];
+	}
+
+	return model;
+
 }
-void GetKey()
-{
-	if (GetAsyncKeyState('W'))
-	{
-		//up
-		
-	}
-	if (GetAsyncKeyState('S'))
-	{
-		//down
-		
-	}
-	if (GetAsyncKeyState('A'))
-	{
-
-		//left
-		
-	}
-	if (GetAsyncKeyState('D'))
-	{
-
-		//right
-		
-
-	}
-}
-
-
-
-void ProcessFbxMesh(FbxNode* Node)
+void ProcessFbxMesh(FbxNode* Node, ModelImport* Model)
 {
 	// set up output console
 	AllocConsole();
@@ -608,9 +628,6 @@ void ProcessFbxMesh(FbxNode* Node)
 	// Get the Normals array from the mesh
 	FbxArray<FbxVector4> normalsVec;
 
-
-
-
 	for (int i = 0; i < childrenCount; i++)
 	{
 		FbxNode *childNode = Node->GetChild(i);
@@ -622,21 +639,21 @@ void ProcessFbxMesh(FbxNode* Node)
 			cout << "\nMesh:" << childNode->GetName();
 
 			// Get index count from mesh
-			numIndices = mesh->GetPolygonVertexCount();
+			int numIndices = mesh->GetPolygonVertexCount();
 			cout << "\nIndice Count:" << numIndices;
 
 			// No need to allocate int array, FBX does for us
-			indices = mesh->GetPolygonVertices();
+			int* indices = mesh->GetPolygonVertices();
 
 			// Get vertex count from mesh
-			numVertices = mesh->GetControlPointsCount();
+			int numVertices = mesh->GetControlPointsCount();
 			cout << "\nVertex Count:" << numVertices;
 
 			mesh->GetPolygonVertexNormals(normalsVec);
 			cout << "\nNormalVec Count:" << normalsVec.Size();
 
 			// Create SimpleVertex array to size of this mesh
-			vertices = new Vertex[numVertices];
+			Vertex* vertices = new Vertex[numVertices];
 
 			for (int index = 0; index < materialCount; index++)
 			{
@@ -693,13 +710,10 @@ void ProcessFbxMesh(FbxNode* Node)
 				vertices[j].pos.x = (float)vert.mData[0] / scale;
 				vertices[j].pos.y = (float)vert.mData[1] / scale;
 				vertices[j].pos.z = (float)vert.mData[2] / scale;
-				// Generate random normal
-				//vertices[j].Normal = RAND_NORMAL;
 			}
 			// Declare a new array for the second vertex array
 			// Note the size is numIndices not numVertices
 			Vertex *vertices2 = new Vertex[numIndices];
-
 			// align (expand) vertex array and set the normals
 			for (int j = 0; j < numIndices; j++)
 			{
@@ -766,8 +780,6 @@ void ProcessFbxMesh(FbxNode* Node)
 
 			}
 
-
-
 			// vertices is an "out" var so make sure it points to the new array
 			// and clean up first array
 			delete vertices;
@@ -783,8 +795,10 @@ void ProcessFbxMesh(FbxNode* Node)
 
 			if (true)
 			{
-				Compactify();
+
+				Compactify(numIndices, numVertices, vertices, indices, *Model);
 			}
+
 			else
 			{
 				// numVertices is an "out" var so set to new size
@@ -793,16 +807,16 @@ void ProcessFbxMesh(FbxNode* Node)
 				numVertices = numIndices;
 			}
 
-			ProcessFbxMesh(childNode);
+			ProcessFbxMesh(childNode, Model);
 
 
 		}
 	}
 }
-void Compactify()
+void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model)
 {
 	float epsilon = 0.1001f;
-	vector<Vertex>vertexList;
+
 	cout << "\nindex count BEFORE/AFTER compaction " << numIndices;
 	cout << "\nvertex count ORIGINAL (FBX source): " << numVertices;
 	//check if thers indices and vertices are repeated
@@ -810,16 +824,16 @@ void Compactify()
 	{
 		bool found = false;
 		unsigned int j;
-		for (j = 0; j < vertexList.size(); j++)
+		for (j = 0; j < model.vertices.size(); j++)
 		{
-			if (abs(vertices[indices[i]].pos.x - vertexList[j].pos.x) < epsilon	&&
-				abs(vertices[indices[i]].pos.y - vertexList[j].pos.y) < epsilon	&&
-				abs(vertices[indices[i]].pos.z - vertexList[j].pos.z) < epsilon	&&
-				vertices[indices[i]].normal.x == vertexList[j].normal.x	&&
-				vertices[indices[i]].normal.y == vertexList[j].normal.y	&&
-				vertices[indices[i]].normal.z == vertexList[j].normal.z &&
-				vertices[indices[i]].Texture.x == vertexList[j].Texture.x    &&
-				vertices[indices[i]].Texture.y == vertexList[j].Texture.y)
+			if (abs(vertices[indices[i]].pos.x - model.vertices[j].pos.x) < epsilon	&&
+				abs(vertices[indices[i]].pos.y - model.vertices[j].pos.y) < epsilon	&&
+				abs(vertices[indices[i]].pos.z - model.vertices[j].pos.z) < epsilon	&&
+				vertices[indices[i]].normal.x == model.vertices[j].normal.x	&&
+				vertices[indices[i]].normal.y == model.vertices[j].normal.y	&&
+				vertices[indices[i]].normal.z == model.vertices[j].normal.z &&
+				vertices[indices[i]].Texture.x == model.vertices[j].Texture.x    &&
+				vertices[indices[i]].Texture.y == model.vertices[j].Texture.y)
 			{
 				found = true;
 				break;
@@ -832,65 +846,66 @@ void Compactify()
 		}
 		else
 		{
-			vertexList.push_back(vertices[indices[i]]);
-			indices[i] = vertexList.size() - 1;
+			model.vertices.push_back(vertices[indices[i]]);
+			indices[i] = model.vertices.size() - 1;
 		}
 	}
 
 	delete vertices;
-	vertices = new Vertex[vertexList.size()];
-	for (unsigned int i = 0; i < vertexList.size(); i++)
+	model.indices.resize(numIndices);
+	for (int i = 0; i < numIndices; i++)
 	{
-		vertices[i] = vertexList[i];
-
+		model.indices[i] = indices[i];
 	}
-	numVertices = vertexList.size();
+	numVertices = model.vertices.size();
 	// print out some stats
 
 	cout << "\nvertex count AFTER expansion: " << numIndices;
-	cout << "\nvertex count AFTER compaction: " << vertexList.size();
-	cout << "\nSize reduction: " << ((numIndices - vertexList.size()) / (float)numIndices)*100.00f << "%";
-	cout << "\nor " << (vertexList.size() / (float)numIndices) << " of the expanded size";
+	cout << "\nvertex count AFTER compaction: " << model.vertices.size();
+	cout << "\nSize reduction: " << ((numIndices - model.vertices.size()) / (float)numIndices)*100.00f << "%";
+	cout << "\nor " << (model.vertices.size() / (float)numIndices) << " of the expanded size";
 
 }
 void CleanUp()
 {
 	//Release the COM Objects we created
-	if(g_SwapChain)g_SwapChain->Release();
-	if(g_Device)g_Device->Release();
-	if(g_DevContext)g_DevContext->Release();
-	if(g_rtv)g_rtv->Release();
-	if(g_vertBuffer)g_vertBuffer->Release();
-	if(g_indexBUffer)g_indexBUffer->Release();
-	if(g_indexBUffer)g_indexBUffer->Release();
-	if(g_VS)g_VS->Release();
-	if(g_PS)g_PS->Release();
-	if(g_vertLayout)g_vertLayout->Release();
-	if(g_depthStencilView)g_depthStencilView->Release();
-	if(g_depthStencilBuffer)g_depthStencilBuffer->Release();
-	if(g_cbPerObjBuffer)g_cbPerObjBuffer->Release();
-	if(Transparency)Transparency->Release();
-	if(CCWcullMode)CCWcullMode->Release();
-	if(CWcullMode)CWcullMode->Release();
+	if (g_SwapChain)g_SwapChain->Release();
+	if (g_Device)g_Device->Release();
+	if (g_DevContext)g_DevContext->Release();
+	if (g_rtv)g_rtv->Release();
+	if (g_vertBuffer)g_vertBuffer->Release();
+	if (g_indexBUffer)g_indexBUffer->Release();
+	if (g_indexBUffer)g_indexBUffer->Release();
+	if (g_VS)g_VS->Release();
+	if (g_PS)g_PS->Release();
+	if (g_vertLayout)g_vertLayout->Release();
+	if (g_depthStencilView)g_depthStencilView->Release();
+	if (g_depthStencilBuffer)g_depthStencilBuffer->Release();
+	if (g_cbPerObjBuffer)g_cbPerObjBuffer->Release();
+	if (Transparency)Transparency->Release();
+	if (CCWcullMode)CCWcullMode->Release();
+	if (CWcullMode)CWcullMode->Release();
 
-	if(g_SwapChain1)g_SwapChain1->Release();
-	if(g_Device1)g_Device1->Release();
-	if(g_DevContext1)g_DevContext1->Release();
-	if(keyedMutex11)keyedMutex11->Release();
-	if(keyedMutex10)keyedMutex10->Release();
-	if(D2D_RT)D2D_RT->Release();
-	if(Brush)Brush->Release();
-	if(sharedTex11)sharedTex11->Release();
-	if(d2dTex)d2dTex->Release();
+	if (g_SwapChain1)g_SwapChain1->Release();
+	if (g_Device1)g_Device1->Release();
+	if (g_DevContext1)g_DevContext1->Release();
 	///////////////**************new**************////////////////////
-	if(cbPFbuffer)cbPFbuffer->Release();
+	if (cbPFbuffer)cbPFbuffer->Release();
 	//////////////**************new**************////////////////////
-	if(g_PS_Solid)g_PS_Solid->Release();
-	if(SRV_tex)SRV_tex->Release();
-	if(g_SamplerState)g_SamplerState->Release();
-	if(d2d_VertBuffer)d2d_VertBuffer->Release();
-	if(d2d_IndexBuffer)d2d_IndexBuffer->Release();
-	
+	if (g_PS_Solid)g_PS_Solid->Release();
+	if (SRV_tex)SRV_tex->Release();
+	if (g_SamplerState)g_SamplerState->Release();
+
+	for (int i = 0; i < models.size(); i++)
+	{
+		if (models[i])
+		{
+			models[i]->IndexBuffer->Release();
+			models[i]->VertBuffer->Release();
+			delete models[i];
+		}
+	}
+
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -916,25 +931,23 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 void Render()
 {
 	// Update our time
-	static float t = 0.0f;
-	if (g_driverType == D3D_DRIVER_TYPE_REFERENCE)
-	{
-		t += (float)XM_PI * 0.0125f;
-	}
-	else
-	{
-		static ULONGLONG timeStart = 0;
-		ULONGLONG timeCur = GetTickCount64();
-		if (timeStart == 0)
-			timeStart = timeCur;
-		t = (timeCur - timeStart) / 1000.0f;
-	}
+	timer.Signal();
 
 	GetKey();
+	Camera = UpdateCamera();
 
+	//camera imformation
+	Camera_pos = XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
+	Camera_Target = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	Camera_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
+	Projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
 	// Rotate cube around the origin
-	World = XMMatrixRotationY(t);
-
+	//World = XMMatrixRotationY(t);
+	{
+		XMVECTOR rot = XMQuaternionRotationRollPitchYaw(0.0f, 1.0f*timer.Delta(), 0.0f);
+		models[0]->transform.rotation = XMQuaternionMultiply(models[0]->transform.rotation, rot);
+	}
 	// Clear the back buffer
 	g_DevContext->ClearRenderTargetView(g_rtv, Colors::MidnightBlue);
 
@@ -942,49 +955,92 @@ void Render()
 	g_DevContext->ClearDepthStencilView(g_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// Update matrix variables and lighting variables
-	//light.dir = XMFLOAT4(0.25f, 0.5f, -1.0f);
-	light.dir = XMFLOAT4(0.25f, 0.5f, 1.0f, 1.0f);
-	light.ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-	light.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	//directional light
+	Dirlight.dir = XMFLOAT3(0.25f, -0.5f, 1.0f);
+	Dirlight.ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+	Dirlight.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
-	constBufferPF.light = light;
+
+	//Point Light
+	Ptlight.range = 10.0f;
+	Ptlight.diffuse = XMFLOAT4(1.0f, 0.0f, 1.0f, 1.0f);
+
+	//update pointlight position
+	XMVECTOR LightVec = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
+	XMStoreFloat3(&Ptlight.pos, LightVec);
+
+
+	//Spot Light
+	StLight.pos = XMFLOAT3(0.0f, 1.0f, 0.0f);
+	StLight.dir = XMFLOAT3(0.0f, 0.0f, 1.0f);
+	StLight.range = 1000.0f;
+	StLight.cone = 20.0f;
+
+	StLight.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	//Update spot light pos && dir
+	//StLight.pos.x = XMVectorGetX(Camera_pos);
+	//StLight.pos.y = XMVectorGetY(Camera_pos);
+	//StLight.pos.z = XMVectorGetZ(Camera_pos);
+	//StLight.dir.x = XMVectorGetX(Camera_Target) - StLight.pos.x;
+	//StLight.dir.y = XMVectorGetY(Camera_Target) - StLight.pos.y;
+	//StLight.dir.z = XMVectorGetZ(Camera_Target) - StLight.pos.z;
+
+	
+	constBufferPF.directLight = Dirlight;
+	constBufferPF.ptLight = Ptlight;
+	constBufferPF.stLight = StLight;
+	constBufferPF.time = timer.TotalTime();
 	g_DevContext->UpdateSubresource(cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
 
 
-	ConstantBuffer cb1;
-	cb1.mWorld = XMMatrixTranspose(World);
-	cb1.mView = XMMatrixTranspose(View);
-	cb1.mProjection = XMMatrixTranspose(Projection);
-	cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
-	cb1.directLight = light;
-
-	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-	g_DevContext->VSSetShader(g_VS, 0, 0);
-	g_DevContext->PSSetShader(g_PS, 0, 0);
-	// Render 
-	g_DevContext->VSSetShader(g_VS, nullptr, 0);
-	g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-	g_DevContext->PSSetShader(g_PS, nullptr, 0);
-	g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-	g_DevContext->DrawIndexed(numIndices, 0, 0);
-	g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
-	g_DevContext->PSSetShaderResources(0, 1, &SRV_tex);
-	//
-	// Render each light
 	
-	XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat4(&light.dir));
-	XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-	mLight = mLightScale * mLight;
 
-	//	// Update the world variable to reflect the current light
-	cb1.mWorld = XMMatrixTranspose(mLight);
-	cb1.outputColor = light.ambient;
-	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-	g_DevContext->PSSetShader(g_PS_Solid, nullptr, 0);
-	g_DevContext->DrawIndexed(numIndices, 0, 0);
+	CBufferPerObject cb1;
+	for (int i = 0; i < models.size(); i++)
+	{
+		UINT stride = sizeof(Vertex);
+		UINT offset = 0;
+		g_DevContext->IASetIndexBuffer(models[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
+		g_DevContext->IASetVertexBuffers(0, 1, &models[i]->VertBuffer, &stride, &offset);
+
+		cb1.mWorld = XMMatrixTranspose(models[i]->transform.createMatrix());
+		cb1.mView = XMMatrixTranspose(View);
+		cb1.mProjection = XMMatrixTranspose(Projection);
+		cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
+		g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
+
+		// Render  the axe
+		g_DevContext->VSSetShader(g_VS, nullptr, 0);
+		g_DevContext->PSSetShader(g_PS, nullptr, 0);
+		g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
+		g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
+		g_DevContext->VSSetConstantBuffers(1, 1, &cbPFbuffer);
+		g_DevContext->PSSetConstantBuffers(1, 1, &cbPFbuffer);
+		
+		g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
+		g_DevContext->PSSetShaderResources(0, 1, &models[i]->srv);
+		g_DevContext->DrawIndexed(models[i]->indexCount, 0, 0);
+
+	}
+
+	//	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
 
 
-	// Present our back buffer to our front buffer
-	
+		// Render each light
+
+		//XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat3(&Dirlight.dir));
+		//XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
+		//mLight = mLightScale * mLight;
+
+		////	// Update the world variable to reflect the current light
+		//cb1.mWorld = XMMatrixTranspose(mLight);
+		//cb1.outputColor = Dirlight.ambient;
+		//g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
+		////g_DevContext->PSSetShader(g_PS_Solid, nullptr, 0);
+		////g_DevContext->DrawIndexed(numIndices, 0, 0);
+
+
+		// Present our back buffer to our front buffer
+
 	g_SwapChain->Present(0, 0);
 }
