@@ -100,7 +100,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     }
     finalColor.a = diffuse.a;
 
-   // finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
+   finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
 
 
     return float4(finalColor);
