@@ -72,8 +72,6 @@ struct DirectionalLight
 	float space;
 	XMFLOAT3 dir;
 	float align;
-	
-
 };
 struct PointLight
 {
@@ -120,7 +118,7 @@ struct CBufferPerObject
 	XMMATRIX mView;
 	XMMATRIX mProjection;
 	XMFLOAT4 outputColor;
-
+	XMFLOAT4 CameraPos;
 };
 
 

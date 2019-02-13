@@ -12,7 +12,7 @@ ID3D11InputLayout* g_vertLayout;
 //Shadder
 ID3D11VertexShader* g_VS = nullptr;
 ID3D11PixelShader* g_PS = nullptr;
-ID3D11PixelShader*      g_PS_Solid = nullptr;
+ID3D11PixelShader*  g_PS_Solid = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -27,7 +27,7 @@ ID3D11ShaderResourceView* SRV_tex = nullptr;
 ID3D11SamplerState* g_SamplerState = nullptr;
 
 //d2d
-ID3D11Buffer* cbPFbuffer; //constant buffer oer frame buffer
+ID3D11Buffer* g_cbPFbuffer; //constant buffer oer frame buffer
 
 ID3D10Device1 *g_Device1 = nullptr;
 ID3D11DeviceContext1*   g_DevContext1 = nullptr;
@@ -45,6 +45,7 @@ XMMATRIX WVP;
 XMMATRIX View;
 XMMATRIX Projection;
 
+XMMATRIX World;
 XMMATRIX Camera;
 XMVECTOR Camera_pos;
 XMVECTOR Camera_Target;
@@ -56,7 +57,7 @@ XTime timer;
 
 // count
 
-float scale = 5.0f;
+float scale = 1.0f;
 float xValue = 0.0f;
 float yValue = 0.0f;
 //Functions
@@ -71,6 +72,7 @@ ModelImport MakeGrid(int width, int height);
 ModelImport ImportFbxModel(const char* FileName);
 ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName = nullptr);
 ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer);
 void Render();
 void CleanUp();
 
@@ -85,6 +87,7 @@ cbPerFrame constBufferPF;
 ID3D11ShaderResourceView* obj_srv;
 vector<ModelBuffer*> models;
 vector<ModelBuffer*> lineModels;
+vector<ModelBuffer*> SolidModels;
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
@@ -385,7 +388,7 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 	{
 		MessageBox(nullptr,
-			"The hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+			"The Light_VS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
 		return hr;
 	}
 
@@ -422,7 +425,7 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 	{
 		MessageBox(nullptr,
-			"The hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+			"The Light_PS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
 		return hr;
 	}
 
@@ -431,17 +434,37 @@ HRESULT InitDevice()
 	pPSBlob->Release();
 	if (FAILED(hr))
 		return hr;
+	//set another pixel shader 
+	pPSBlob = nullptr;
+	hr = CompileShader(L"Light_PS.hlsl", "PS_Soild", "ps_4_0", &pPSBlob);
+	if (FAILED(hr))
+	{
+		MessageBox(nullptr,
+			"The Light_PS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+		return hr;
+	}
+
+	// Create the pixel shader
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_PS_Solid);
+	pPSBlob->Release();
+	if (FAILED(hr))
+		return hr;
 
 
 	models.push_back(CreateModelBuffer(ImportFbxModel("Axe Asset\\Axe_1.fbx"), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(CreateModelBuffer(LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
+	models.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\wall.fbx"), L"Solid Object Assets\\stone_texture.dds"));
 	lineModels.push_back(CreateModelBuffer(MakeGrid(15, 15), nullptr));
-	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
+	//SolidModels.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\wall.fbx"), L"Solid Object Assets\\stone_texture.dds"));
+
+	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
 	models[0]->transform.pos = XMVectorSet(-2.0f, 0.0f, 0.0f, 1.0f);
 	models[1]->transform.pos = XMVectorSet(3.0f, 0.0f, 0.0f, 1.0f);
-
+	models[2]->transform.pos = XMVectorSet(0.2f, -2.0f, 0.0f, 1.0f);
+	models[2]->transform.scale = XMVectorSet(0.5f, 0.5f, 0.5f, 1.0f);
+	models[2]->transform.rotation = XMVectorSet(0.0f, 1.5f, 0.0f, 1.0f);
+	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 	D3D11_BUFFER_DESC bd = {};
-	// Set primitive topology
 
 	// Create the constant buffer
 	bd.Usage = D3D11_USAGE_DEFAULT;
@@ -459,7 +482,7 @@ HRESULT InitDevice()
 	bd.CPUAccessFlags = 0;
 	bd.MiscFlags = 0;
 
-	hr = g_Device->CreateBuffer(&bd, nullptr, &cbPFbuffer);
+	hr = g_Device->CreateBuffer(&bd, nullptr, &g_cbPFbuffer);
 	if (FAILED(hr))
 		return hr;
 
@@ -476,7 +499,7 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 		return hr;
 	// Initialize the world matrices
-	Camera = XMMatrixIdentity();
+	World = XMMatrixIdentity();
 
 	// Initialize the view matrix
 	XMVECTOR Eye = XMVectorSet(0.0f, 4.0f, -10.0f, 0.0f);
@@ -930,7 +953,7 @@ void CleanUp()
 	if (g_Device1)g_Device1->Release();
 	if (g_DevContext1)g_DevContext1->Release();
 	///////////////**************new**************////////////////////
-	if (cbPFbuffer)cbPFbuffer->Release();
+	if (g_cbPFbuffer)g_cbPFbuffer->Release();
 	//////////////**************new**************////////////////////
 	if (g_PS_Solid)g_PS_Solid->Release();
 	if (SRV_tex)SRV_tex->Release();
@@ -963,6 +986,19 @@ void CleanUp()
 			delete lineModels[i];
 		}
 	}
+	for (int i = 0; i < SolidModels.size(); i++)
+	{
+		if (lineModels[i])
+		{
+			if (SolidModels[i]->IndexBuffer)
+				SolidModels[i]->IndexBuffer->Release();
+			if (SolidModels[i]->VertBuffer)
+				SolidModels[i]->VertBuffer->Release();
+			if (SolidModels[i]->srv)
+				SolidModels[i]->srv->Release();
+			delete SolidModels[i];
+		}
+	}
 
 }
 
@@ -985,7 +1021,35 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		wParam,
 		lParam);
 }
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer)
+{
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+	CBufferPerObject cb;
+	g_DevContext->IASetIndexBuffer(model->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
+	g_DevContext->IASetVertexBuffers(0, 1, &model->VertBuffer, &stride, &offset);
 
+	g_DevContext->IASetPrimitiveTopology(SetPrimitiveTopology);
+	cb.mWorld = XMMatrixTranspose(model->transform.createMatrix());
+	cb.mView = XMMatrixTranspose(View);
+	cb.mProjection = XMMatrixTranspose(Projection);
+	cb.outputColor = XMFLOAT4(0, 0, 0, 0);
+	XMStoreFloat4(&cb.CameraPos, Camera_pos);
+	g_DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
+
+	// Render  the axe
+	g_DevContext->VSSetShader(g_VS, nullptr, 0);
+	g_DevContext->PSSetShader(g_PS, nullptr, 0);
+	g_DevContext->VSSetConstantBuffers(0, 1, &buffer);
+	g_DevContext->PSSetConstantBuffers(0, 1, &buffer);
+	g_DevContext->VSSetConstantBuffers(1, 1, &pfbuffer);
+	g_DevContext->PSSetConstantBuffers(1, 1, &pfbuffer);
+
+	g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
+	g_DevContext->PSSetShaderResources(0, 1, &model->srv);
+	g_DevContext->DrawIndexed(model->indexCount, 0, 0);
+
+}
 void Render()
 {
 	// Update our time
@@ -1000,8 +1064,7 @@ void Render()
 	Camera_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
 	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
 	Projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
-	// Rotate cube around the origin
-	//World = XMMatrixRotationY(t);
+	// Rotate the axe around the origin
 	{
 		XMVECTOR rot = XMQuaternionRotationRollPitchYaw(0.0f, 1.0f*timer.Delta(), 0.0f);
 		models[0]->transform.rotation = XMQuaternionMultiply(models[0]->transform.rotation, rot);
@@ -1020,21 +1083,21 @@ void Render()
 
 
 	//Point Light
-	Ptlight.range = 5.0f;
+	Ptlight.range = 6.0f;
 	Ptlight.diffuse = XMFLOAT4(0.0f, 4.0f, 0.0f, 1.0f);
 
 	//update pointlight position
-	//0,0,0,0
-	XMVECTOR LightVec = XMVectorSet(1.0f, 3.0f, -0.5f, 0.0f);
+	//-9.0f, 1.0f, 5.0f, 0.0f
+	XMVECTOR LightVec = XMVectorSet(-7.0f, 1.0f, 8.0f, 0.0f);
 	XMStoreFloat3(&Ptlight.pos, LightVec);
 
 
-	//Spot Light
-	StLight.pos = XMFLOAT3(5.0f, 3.0f, 0.0f);
-	StLight.dir = XMFLOAT3(-5.0f, -3.0f, 0.0f);
+	//Spot Light 
+	StLight.pos = XMFLOAT3(3.0f, 3.0f, 0.0f);
+	StLight.dir = XMFLOAT3(-3.0f, -3.0f, 0.0f);
 	StLight.range = 20.0f;
-	StLight.InConeRatio = XMConvertToRadians(30.0f);
-	StLight.OutConeRatio = XMConvertToRadians(60.0f);
+	StLight.InConeRatio = XMConvertToRadians(10.0f);
+	StLight.OutConeRatio = XMConvertToRadians(30.0f);
 
 	StLight.diffuse = XMFLOAT4(3.0f, 0.0f, 0.0f, 1.0f);
 
@@ -1043,85 +1106,20 @@ void Render()
 	constBufferPF.ptLight = Ptlight;
 	constBufferPF.stLight = StLight;
 	constBufferPF.time = timer.TotalTime();
-	g_DevContext->UpdateSubresource(cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
-
-
+	g_DevContext->UpdateSubresource(g_cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
 
 
 	CBufferPerObject cb1;
 	for (int i = 0; i < models.size(); i++)
 	{
-		UINT stride = sizeof(Vertex);
-		UINT offset = 0;
-		g_DevContext->IASetIndexBuffer(models[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
-		g_DevContext->IASetVertexBuffers(0, 1, &models[i]->VertBuffer, &stride, &offset);
-
-		g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-		cb1.mWorld = XMMatrixTranspose(models[i]->transform.createMatrix());
-		cb1.mView = XMMatrixTranspose(View);
-		cb1.mProjection = XMMatrixTranspose(Projection);
-		cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
-		g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-
-		// Render  the axe
-		g_DevContext->VSSetShader(g_VS, nullptr, 0);
-		g_DevContext->PSSetShader(g_PS, nullptr, 0);
-		g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-		g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-		g_DevContext->VSSetConstantBuffers(1, 1, &cbPFbuffer);
-		g_DevContext->PSSetConstantBuffers(1, 1, &cbPFbuffer);
-
-		g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
-		g_DevContext->PSSetShaderResources(0, 1, &models[i]->srv);
-		g_DevContext->DrawIndexed(models[i]->indexCount, 0, 0);
-
+		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer);
 	}
+
 
 	for (int i = 0; i < lineModels.size(); i++)
 	{
-		UINT stride = sizeof(Vertex);
-		UINT offset = 0;
-		g_DevContext->IASetIndexBuffer(lineModels[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
-		g_DevContext->IASetVertexBuffers(0, 1, &lineModels[i]->VertBuffer, &stride, &offset);
-		g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-
-
-		cb1.mWorld = XMMatrixTranspose(lineModels[i]->transform.createMatrix());
-		cb1.mView = XMMatrixTranspose(View);
-		cb1.mProjection = XMMatrixTranspose(Projection);
-		cb1.outputColor = XMFLOAT4(0, 0, 0, 0);
-		g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-
-		// Render  the axe
-		g_DevContext->VSSetShader(g_VS, nullptr, 0);
-		g_DevContext->PSSetShader(g_PS, nullptr, 0);
-		g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-		g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-		g_DevContext->VSSetConstantBuffers(1, 1, &cbPFbuffer);
-		g_DevContext->PSSetConstantBuffers(1, 1, &cbPFbuffer);
-
-		g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
-		g_DevContext->DrawIndexed(lineModels[i]->indexCount, 0, 0);
-
+		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer);
 	}
-	//	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-
-
-		// Render each light
-
-		//XMMATRIX mLight = XMMatrixTranslationFromVector(5.0f * XMLoadFloat3(&Dirlight.dir));
-		//XMMATRIX mLightScale = XMMatrixScaling(0.2f, 0.2f, 0.2f);
-		//mLight = mLightScale * mLight;
-
-		////	// Update the world variable to reflect the current light
-		//cb1.mWorld = XMMatrixTranspose(mLight);
-		//cb1.outputColor = Dirlight.ambient;
-		//g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, nullptr, &cb1, 0, 0);
-		////g_DevContext->PSSetShader(g_PS_Solid, nullptr, 0);
-		////g_DevContext->DrawIndexed(numIndices, 0, 0);
-
-
-		// Present our back buffer to our front buffer
-
+	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);
 }

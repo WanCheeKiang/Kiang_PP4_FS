@@ -22,6 +22,7 @@ cbuffer ConstantBuffer : register(b0)
 	matrix mView;
 	matrix mProjection;
 	float4 outputColor;
+    float4 CameraPos;
 
 };
 Texture2D ObjTexture;
@@ -51,7 +52,6 @@ VS_OUTPUT main(VS_INPUT input)
 	output.Pos = mul(output.Pos, mView);
 	output.Pos = mul(output.Pos, mProjection);
 	output.Normal = mul(float4(input.Normal,0), (mWorld)).xyz;
-
 	output.TexCoord = input.TexCoord;
 
 	return output;

@@ -9,7 +9,14 @@ cbuffer cbPerFrame : register(b1)
     float3 align;
 };
 
-
+cbuffer ConstantBuffer : register(b0)
+{
+    matrix mWorld;
+    matrix mView;
+    matrix mProjection;
+    float4 outputColor;
+    float4 CameraPos;
+};
 
 Texture2D ObjTexture : register(t0);
 SamplerState ObjSamplerState : register(s0);
@@ -28,11 +35,26 @@ float4 main(PS_INPUT input) : SV_TARGET
 
     float4 diffuse = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
     float3 normal = normalize(input.Normal);
+    float specularPower = 512.0f;
+
+    float3 viewDirection = normalize(CameraPos.xyz - input.WorldPos.xyz);
+
     float4 finalColor = directLight.ambient * diffuse;
 	{
-	//finalColor = diffuse * directLight.ambient;
+       
         float3 dir = normalize(-directLight.dir);
-        finalColor += dot(dir, normal) * directLight.diffuse * diffuse;
+        float lightIntensity = saturate(dot(input.Normal, dir));
+        float specular = 0.0f;
+        if (lightIntensity > 0.0f)
+        {
+            finalColor += directLight.ambient * lightIntensity;
+            float3 reflection = normalize(reflect(dir, input.Normal));
+            specular = pow(saturate(dot(viewDirection, reflection)), specularPower);
+        }
+
+        finalColor +=(dot(dir, normal) * directLight.diffuse * diffuse);
+        finalColor += specular * float4(1.0f, 1.0f, 1.0f, 1.0f);
+
     }
 	// point light
 	{
@@ -42,10 +64,21 @@ float4 main(PS_INPUT input) : SV_TARGET
 
         float amountLight = saturate(dot(dir, input.Normal));
 
+        float lightIntensity = saturate(dot(input.Normal, normalize(-dir)));
+        float specular = 0.0f;
+        if (lightIntensity > 0.0f)
+        {
+            finalColor += amountLight* lightIntensity;
+            float3 reflection = normalize(reflect(normalize(-dir), input.Normal));
+            specular = pow(saturate(dot(viewDirection, reflection)), specularPower);
+        }
+
         if (amountLight > 0.0f)
         {
             float attenuation = 1.0f - saturate(distance / ptLight.range);
+
             finalColor += amountLight * diffuse * ptLight.diffuse * attenuation;
+            finalColor += specular * float4(1.0f, 1.0f, 1.0f, 1.0f);
         }
     }
 	//spot light
@@ -65,38 +98,14 @@ float4 main(PS_INPUT input) : SV_TARGET
 
 
     }
-        finalColor.a = diffuse.a;
+    finalColor.a = diffuse.a;
 
-        finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
+   // finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
 
 
-        return float4(finalColor);
-    }
-
-//float4 main2(PS_INPUT input) : SV_TARGET
-//{
-//	float4 finalColor = 0;
-//	input.Normal = normalize(input.Normal);
-//	float4  diffuse = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
-//	float3 LighttoPixVec = ptLight.pos - input.WorldPos;
-//	float distance = length(LighttoPixVec);
-//	float3 finalAmbient = diffuse * ptLight.ambient;
-//	if (distance > ptLight.range)
-//	{
-//		return float4(finalAmbient, diffuse.a);
-//	}
-//
-//	LighttoPixVec /= distance;
-//
-//	float amountLight = dot(LighttoPixVec, input.Normal);
-//
-//	if (amountLight > 0.0f)
-//	{
-//		finalColor = amountLight * diffuse * ptLight.diffuse;
-//		finalColor /= ptLight.att[0] + (ptLight.att[1] * distance) + (ptLight.att[2] * (distance*distance));
-//	}
-//	finalColor = saturate(finalColor + float4(finalAmbient,1));
-//	finalColor.a = diffuse.a;
-//	return finalColor;
-//}
-//
+    return float4(finalColor);
+}
+float4 PS_Soild(PS_INPUT input) : SV_Target
+{
+    return outputColor;
+}
