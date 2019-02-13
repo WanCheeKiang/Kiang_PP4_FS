@@ -72,7 +72,7 @@ ModelImport MakeGrid(int width, int height);
 ModelImport ImportFbxModel(const char* FileName);
 ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName = nullptr);
 ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer);
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
 void Render();
 void CleanUp();
 
@@ -1021,7 +1021,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		wParam,
 		lParam);
 }
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer)
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor)
 {
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
@@ -1033,7 +1033,7 @@ void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopolog
 	cb.mWorld = XMMatrixTranspose(model->transform.createMatrix());
 	cb.mView = XMMatrixTranspose(View);
 	cb.mProjection = XMMatrixTranspose(Projection);
-	cb.outputColor = XMFLOAT4(0, 0, 0, 0);
+	cb.outputColor = outputColor;
 	XMStoreFloat4(&cb.CameraPos, Camera_pos);
 	g_DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
 
@@ -1107,18 +1107,21 @@ void Render()
 	constBufferPF.stLight = StLight;
 	constBufferPF.time = timer.TotalTime();
 	g_DevContext->UpdateSubresource(g_cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
-
+	XMFLOAT4 setColor;
 
 	CBufferPerObject cb1;
+
+	setColor = XMFLOAT4(0, 0, 0, 0);
 	for (int i = 0; i < models.size(); i++)
 	{
-		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer);
+		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer,setColor);
 	}
 
-
+	
 	for (int i = 0; i < lineModels.size(); i++)
 	{
-		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer);
+		setColor = XMFLOAT4(225, 225, 225, 255);
+		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer,setColor);
 	}
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);
