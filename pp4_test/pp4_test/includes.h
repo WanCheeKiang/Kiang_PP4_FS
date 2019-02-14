@@ -1,6 +1,8 @@
 ﻿#pragma once
 #pragma comment(lib,"d3d11.lib")
 #pragma comment(lib,"d3dcompiler.lib")
+#pragma comment(lib, "dinput8.lib")
+#pragma comment(lib, "dxguid.lib")
 
 #include<DirectXMath.h>
 using namespace DirectX;
@@ -24,6 +26,7 @@ using namespace DirectX;
 #include"Chest.h"
 #define ChestData_vert 820
 #define ChestData_Ind 1812
+#include<dinput.h>
 
 //#include<D3DX11tex.h>
 using namespace std;
@@ -146,6 +149,21 @@ struct ModelImport
 	vector<int>indices;
 };
 
+
+struct Materrial
+{
+	XMFLOAT4 ambient;
+	XMFLOAT4 diffuse;
+	XMFLOAT4 specular;
+	XMFLOAT4 reflect;
+};
+
+struct RotationMatrixs
+{
+	XMMATRIX Rotationx;
+	XMMATRIX Rotationy;
+	XMMATRIX Rotationz;
+};
 #define s_width 500
 #define s_height 500
 #define BACKBUFFER_WIDTH	500

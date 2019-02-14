@@ -34,6 +34,7 @@ float4 main(PS_INPUT input) : SV_TARGET
 {
 
     float4 diffuse = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
+    clip(diffuse.a - 0.25);
     float3 normal = normalize(input.Normal);
     float specularPower = 512.0f;
 

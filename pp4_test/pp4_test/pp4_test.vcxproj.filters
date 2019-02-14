@@ -46,5 +46,7 @@
   <ItemGroup>
     <FxCompile Include="Light_PS.hlsl" />
     <FxCompile Include="Light_VS.hlsl" />
+    <FxCompile Include="CubeMap_VS.hlsl" />
+    <FxCompile Include="CubeMap_PS.hlsl" />
   </ItemGroup>
 </Project>

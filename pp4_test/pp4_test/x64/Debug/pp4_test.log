@@ -1,16 +1,22 @@
 ﻿  main.cpp
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(496): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(497): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(502): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(513): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(538): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(543): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(549): warning C4244: '+=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(555): warning C4244: '-=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(568): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(569): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(890): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(900): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1006): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1045): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\dinput.h: DIRECTINPUT_VERSION undefined. Defaulting to version 0x0800
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(593): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(594): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(599): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(610): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(657): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(687): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(688): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1008): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1018): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1042): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1044): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1046): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1048): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1082): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1095): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1097): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1121): warning C4018: '<': signed/unsigned mismatch
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1287): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(1326): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
   pp4_test.vcxproj -> C:\Users\Kiang Wan Chee\Documents\PP4\pp4_test\x64\Debug\pp4_test.exe
