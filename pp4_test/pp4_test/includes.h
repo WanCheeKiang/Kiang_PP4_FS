@@ -111,7 +111,7 @@ struct cbPerFrame
 	SpotLight stLight;
 	float time;
 	XMFLOAT3 align;
-
+	XMFLOAT4 CameraPos;
 };
 
 
@@ -121,7 +121,7 @@ struct CBufferPerObject
 	XMMATRIX mView;
 	XMMATRIX mProjection;
 	XMFLOAT4 outputColor;
-	XMFLOAT4 CameraPos;
+	
 };
 
 

@@ -13,6 +13,7 @@ ID3D11InputLayout* g_vertLayout;
 ID3D11VertexShader* g_VS = nullptr;
 ID3D11PixelShader* g_PS = nullptr;
 ID3D11PixelShader*  g_PS_Solid = nullptr;
+ID3D11PixelShader* g_Reflection_PS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -118,7 +119,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 			"Error", MB_OK);
 		return 0;
 	}
-	MSG msg = { 0 };
+	
 
 	if (FAILED(InitInput(hInstance)))
 	{
@@ -126,6 +127,8 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 			"Error", MB_OK);
 		return 0;
 	}
+
+	MSG msg = { 0 };
 	while (WM_QUIT != msg.message)
 	{
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
@@ -485,10 +488,15 @@ HRESULT InitDevice()
 	pPSBlob->Release();
 	pVSBlob->Release();
 
+	pPSBlob = nullptr;
+	hr = CompileShader(L"Reflection_PS.hlsl", "main", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Reflection_PS);
+	pPSBlob->Release();
 
 	models.push_back(CreateModelBuffer(ImportFbxModel("Axe Asset\\Axe_1.fbx"), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(CreateModelBuffer(LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\wall.fbx"), L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\sphere.fbx"), L"SkyboxOcean.dds"));
 	lineModels.push_back(CreateModelBuffer(MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -497,13 +505,15 @@ HRESULT InitDevice()
 	models[2]->transform.pos = XMVectorSet(0.2f, -2.0f, 0.0f, 1.0f);
 	models[2]->transform.scale = XMVectorSet(0.5f, 0.5f, 0.5f, 1.0f);
 	models[2]->transform.rotation = XMVectorSet(0.0f, 1.5f, 0.0f, 1.0f);
+	models[3]->transform.pos = XMVectorSet(0.0f, 4.0f, 2.0f, 1.0f);
+	models[3]->transform.scale = XMVectorSet(1.5f, 1.5f, 1.5f, 1.0f);
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
 	skybox = CreateModelBuffer(CreateSphere(10, 10), L"SkyboxOcean.dds");
-	XMMATRIX Scale = XMMatrixScaling(5.0f, 5.0f, 5.0f);
-	XMMATRIX Transalation = XMMatrixTranslation(XMVectorGetX(Camera_pos), XMVectorGetY(Camera_pos), XMVectorGetZ(Camera_pos));
+	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f,1.0f);
+	
 
-	sphereMap.transform.createMatrix() = Scale * Transalation;
+	skybox->transform.scale = Scale;
 
 
 	D3D11_BUFFER_DESC bd = {};
@@ -583,7 +593,7 @@ HRESULT InitInput(HINSTANCE hInstance)
 	hr = DIKeyboard->SetCooperativeLevel(g_hwindow, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
 
 	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
-	hr = DIMouse->SetCooperativeLevel(g_hwindow, DISCL_EXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
+	hr = DIMouse->SetCooperativeLevel(g_hwindow, DISCL_NONEXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
 
 	return hr;
 }
@@ -651,9 +661,6 @@ void GetKey(double time)
 	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &Curr_MouseState);
 	DIKeyboard->GetDeviceState(sizeof(keyState), (LPVOID)&keyState);
 
-	if (keyState[DIK_ESCAPE] & 0x80)
-		PostMessage(g_hwindow, WM_DESTROY, 0, 0);
-
 	float speed = 15.0f * time;
 
 	if (keyState[DIK_A] & 0x80)
@@ -672,8 +679,6 @@ void GetKey(double time)
 
 		g_MouseState = Curr_MouseState;
 	}
-	Camera = UpdateCamera();
-
 }
 ModelImport MakeGrid(int width, int height)
 {
@@ -1220,28 +1225,35 @@ void CleanUp()
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+	PAINTSTRUCT ps;
+	HDC hdc;
+
 	switch (msg)
 	{
-	case WM_KEYDOWN:
-		if (wParam == VK_ESCAPE) {
-			DestroyWindow(hwnd);
-		}
-		return 0;
+	case WM_PAINT:
+		hdc = BeginPaint(hwnd, &ps);
+		EndPaint(hwnd, &ps);
+		break;
 
 	case WM_DESTROY:
 		PostQuitMessage(0);
-		return 0;
+		break;
+
+		// Note that this tutorial does not handle resizing (WM_SIZE) requests,
+		// so we created the window without the resize border.
+
+	default:
+		return DefWindowProc(hwnd, msg, wParam, lParam);
 	}
-	return DefWindowProc(hwnd,
-		msg,
-		wParam,
-		lParam);
+
+	return 0;
 }
 void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor)
 {
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	CBufferPerObject cb;
+	cbPerFrame cbpf;
 	g_DevContext->IASetIndexBuffer(model->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
 	g_DevContext->IASetVertexBuffers(0, 1, &model->VertBuffer, &stride, &offset);
 
@@ -1250,12 +1262,13 @@ void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopolog
 	cb.mView = XMMatrixTranspose(View);
 	cb.mProjection = XMMatrixTranspose(Projection);
 	cb.outputColor = outputColor;
-	XMStoreFloat4(&cb.CameraPos, Camera_pos);
+
+	XMStoreFloat4(&cbpf.CameraPos, Camera_pos);
 	g_DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
 
 	// Render  the axe
-	g_DevContext->VSSetShader(g_VS, nullptr, 0);
-	g_DevContext->PSSetShader(g_PS, nullptr, 0);
+	g_DevContext->VSSetShader(VS, nullptr, 0);
+	g_DevContext->PSSetShader(PS, nullptr, 0);
 	g_DevContext->VSSetConstantBuffers(0, 1, &buffer);
 	g_DevContext->PSSetConstantBuffers(0, 1, &buffer);
 	g_DevContext->VSSetConstantBuffers(1, 1, &pfbuffer);
@@ -1273,14 +1286,14 @@ void Render()
 	timer.Signal();
 
 	GetKey(timer.Delta());
-	Camera = UpdateCamera();
+	
 
 	//camera imformation
 	Camera_pos = XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
 	Camera_Target = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
 	Camera_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
 	Camera = UpdateCamera();
+	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
 	Projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
 	// Rotate the axe around the origin
 	{
@@ -1331,37 +1344,25 @@ void Render()
 	setColor = XMFLOAT4(0, 0, 0, 0);
 	for (int i = 0; i < models.size(); i++)
 	{
+		
 		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		if (models[3])
+		{
+			RenderObject(models[3], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,g_Reflection_PS , g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		}
 	}
-
+	
 
 	for (int i = 0; i < lineModels.size(); i++)
 	{
-		setColor = XMFLOAT4(225, 225, 225, 255);
-		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		setColor = XMFLOAT4(0, 0, 0, 0);
+		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST,g_PS_Solid , g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
 
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	g_DevContext->IASetIndexBuffer(skybox->IndexBuffer, DXGI_FORMAT_R32_UINT, 0);
-
-	g_DevContext->IASetVertexBuffers(0, 1, &skybox->VertBuffer, &stride, &offset);
-
-	cb1.mWorld = XMMatrixTranspose(sphereMap.transform.createMatrix()*View*Projection);
-	g_DevContext->UpdateSubresource(g_cbPerObjBuffer, 0, NULL, &cb1, 0, 0);
-	g_DevContext->VSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
-	//Send our skymap resource view to pixel shader
-	g_DevContext->PSSetShaderResources(0, 1, &skybox->srv);
-	g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
-
-	//Set the new VS and PS shaders
-	g_DevContext->VSSetShader(sphere_VS, 0, 0);
-	g_DevContext->PSSetShader(sphere_PS, 0, 0);
-	//Set the new depth/stencil and RS states
+	skybox->transform.pos = Camera_pos;
 	g_DevContext->OMSetDepthStencilState(DSLessEqual, 0);
 	g_DevContext->RSSetState(RSCullNone);
-	int indexCount = skybox->indexCount * 3;
-	g_DevContext->DrawIndexed(indexCount, 0, 0);
+	RenderObject(skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, sphere_PS, sphere_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor );
 	
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);

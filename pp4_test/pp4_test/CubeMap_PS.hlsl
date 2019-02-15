@@ -4,8 +4,6 @@ cbuffer ConstantBuffer : register(b0)
     matrix mView;
     matrix mProjection;
     float4 outputColor;
-    float4 CameraPos;
-
 };
 
 Texture2D ObjTexture;

@@ -36,7 +36,7 @@ float4 main(PS_INPUT input) : SV_TARGET
     float4 diffuse = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
     clip(diffuse.a - 0.25);
     float3 normal = normalize(input.Normal);
-    float specularPower = 512.0f;
+    float specularPower = 246.0f;
 
     float3 viewDirection = normalize(CameraPos.xyz - input.WorldPos.xyz);
 
@@ -101,8 +101,8 @@ float4 main(PS_INPUT input) : SV_TARGET
     }
     finalColor.a = diffuse.a;
 
-   finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
-
+    finalColor.b += floor(cos(time + input.WorldPos.x) + 1) * 0.4f;
+    
 
     return float4(finalColor);
 }
