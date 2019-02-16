@@ -26,15 +26,15 @@ struct PS_INPUT
     float2 TexCoord : TEXCOORD;
     float3 WorldPos : WORLDPOS;
 };
-TextureCube CubeMap;
-SamplerState ObjSamplerState;
+TextureCube CubeMap : register(t0);
+SamplerState ObjSamplerState : register(s0);
 
 
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
     float3 cam_dir = normalize(CameraPos.xyz - input.WorldPos);
-    float3 reflectVec = reflect(cam_dir,input.Normal);
+    float3 reflectVec = reflect(-cam_dir,input.Normal);
 
     return float4(CubeMap.Sample(ObjSamplerState, reflectVec).xyz, 1.0f);
 

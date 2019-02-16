@@ -24,7 +24,6 @@ ID3D11Buffer* obj_IndexBuffer = nullptr;
 ID3D11BlendState* Transparency = nullptr;
 ID3D11RasterizerState* CCWcullMode = nullptr;
 ID3D11RasterizerState* CWcullMode = nullptr;
-ID3D11ShaderResourceView* SRV_tex = nullptr;
 ID3D11SamplerState* g_SamplerState = nullptr;
 
 //d2d
@@ -43,20 +42,25 @@ HWND g_hwindow = nullptr;
 HRESULT hr;
 HINSTANCE g_hInst = nullptr;
 XMMATRIX WVP;
-XMMATRIX View;
-XMMATRIX Projection;
 XMMATRIX World;
 //camera value
-XMMATRIX Camera;
-XMVECTOR Camera_pos;
-XMVECTOR Camera_Target;
-XMVECTOR Camera_up;
+struct Camera
+{
+	XMMATRIX projection;
+	Transform transform;
+
+	XMMATRIX View()
+	{
+		return XMMatrixInverse(nullptr, transform.createMatrix());
+	}
+};
+
+Camera camera;
 float rotate = 0.01f;
 XTime timer;
 //camera value
 float scale = 1.0f;
-float Cam_x = 0.0f; //Pitch
-float Cam_y = 0.0f; //Yaw
+
 float xValue = 0.0f; //value for move right && left
 float zValue = 0.0f; //value for move back && forward
 //get input
@@ -71,13 +75,13 @@ HRESULT InitDevice();
 HRESULT InitInput(HINSTANCE hInstance);
 void ProcessFbxMesh(FbxNode* Node, ModelImport* Model);
 void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model);
-XMMATRIX UpdateCamera();
+void UpdateCamera();
 void GetKey(double time);
 ModelImport MakeGrid(int width, int height);
 ModelImport ImportFbxModel(const char* FileName);
 ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName = nullptr);
 ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
 ModelImport CreateSphere(int LatLines, int LongLine);
 void Render();
 void CleanUp();
@@ -94,7 +98,6 @@ vector<ModelBuffer*> models;
 vector<ModelBuffer*> lineModels;
 ModelBuffer* skybox;
 //cube map
-ModelBuffer sphereMap;
 ID3D11VertexShader* sphere_VS = nullptr;
 ID3D11PixelShader* sphere_PS = nullptr;
 ID3D11DepthStencilState* DSLessEqual = nullptr;
@@ -105,6 +108,9 @@ RotationMatrixs g_RotationMatrix;
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
+
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	//_CrtSetBreakAlloc(400);
 
 	if (FAILED(InitWindow(hInstance, nShowCmd)))
 	{
@@ -119,7 +125,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
 			"Error", MB_OK);
 		return 0;
 	}
-	
+
 
 	if (FAILED(InitInput(hInstance)))
 	{
@@ -235,6 +241,7 @@ HRESULT InitDevice()
 	UINT height = rc.bottom - rc.top;
 
 	UINT createDeviceFlags = 0;
+
 #ifdef _DEBUG
 	createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
 #endif
@@ -482,8 +489,8 @@ HRESULT InitDevice()
 	pVSBlob = nullptr;
 
 	hr = CompileShader(L"CubeMap_VS.hlsl", "main", "vs_4_0", &pVSBlob);
-	hr = CompileShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &sphere_VS);
+	hr = CompileShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &sphere_PS);
 	pPSBlob->Release();
 	pVSBlob->Release();
@@ -509,12 +516,32 @@ HRESULT InitDevice()
 	models[3]->transform.scale = XMVectorSet(1.5f, 1.5f, 1.5f, 1.0f);
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
+	lineModels[0]->vs = g_VS;
+	lineModels[0]->ps = g_PS_Solid;
+
+	for (int i = 0; i < models.size(); i++)
+	{
+		switch (i)
+		{
+		case 3:
+			models[i]->vs = g_VS;
+			models[i]->ps = g_Reflection_PS;
+			break;
+		default:
+			models[i]->vs = g_VS;
+			models[i]->ps = g_PS;
+
+		}
+	}
+
 	skybox = CreateModelBuffer(CreateSphere(10, 10), L"SkyboxOcean.dds");
-	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f,1.0f);
-	
+	skybox->vs = sphere_VS;
+	skybox->ps = sphere_PS;
+	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f, 1.0f);
+
 
 	skybox->transform.scale = Scale;
-
+	skybox->transform.rotation = XMQuaternionIdentity();
 
 	D3D11_BUFFER_DESC bd = {};
 
@@ -573,28 +600,37 @@ HRESULT InitDevice()
 	World = XMMatrixIdentity();
 
 	// Initialize the view matrix
-	Camera_pos = XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
-	Camera_Target = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	Camera_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
+	camera.transform.pos = XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
+	camera.transform.rotation = XMQuaternionRotationRollPitchYaw(XMConvertToRadians(20.0f), 0.0f, 0.0f);
 
 	// Initialize the projection matrix
-	Projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
+	camera.projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
 
 	return S_OK;
 }
 HRESULT InitInput(HINSTANCE hInstance)
 {
 	hr = DirectInput8Create(hInstance, DIRECTINPUT_VERSION, IID_IDirectInput8, (void**)&DirectInput, nullptr);
+	if (FAILED(hr))
+		return hr;
 	hr = DirectInput->CreateDevice(GUID_SysKeyboard, &DIKeyboard, nullptr);
+	if (FAILED(hr))
+		return hr;
 	hr = DirectInput->CreateDevice(GUID_SysMouse, &DIMouse, nullptr);
-
+	if (FAILED(hr))
+		return hr;
 	hr = DIKeyboard->SetDataFormat(&c_dfDIKeyboard);
-	hr = DIKeyboard->SetCooperativeLevel(g_hwindow, DISCL_FOREGROUND | DISCL_NONEXCLUSIVE);
-
+	if (FAILED(hr))
+		return hr;
+	hr = DIKeyboard->SetCooperativeLevel(g_hwindow, DISCL_BACKGROUND | DISCL_NONEXCLUSIVE);
+	if (FAILED(hr))
+		return hr;
 	hr = DIMouse->SetDataFormat(&c_dfDIMouse);
-	hr = DIMouse->SetCooperativeLevel(g_hwindow, DISCL_NONEXCLUSIVE | DISCL_NOWINKEY | DISCL_FOREGROUND);
-
+	if (FAILED(hr))
+		return hr;
+	hr = DIMouse->SetCooperativeLevel(g_hwindow, DISCL_NONEXCLUSIVE | DISCL_NOWINKEY | DISCL_BACKGROUND);
+	if (FAILED(hr))
+		return hr;
 	return hr;
 }
 ModelBuffer* CreateModelBuffer(ModelImport model, const wchar_t* TextureName)
@@ -627,41 +663,46 @@ ModelBuffer* CreateModelBuffer(ModelImport model, const wchar_t* TextureName)
 
 	return buffer;
 }
-XMMATRIX UpdateCamera()
+
+float Cam_x = 0.0f;
+float Cam_y = 0.0f;
+void UpdateCamera()
 {
-	XMMATRIX CamMatrix;
-	CamMatrix = XMMatrixRotationRollPitchYaw(Cam_x, Cam_y, 0);
-	XMVECTOR ForwardVec = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-	Camera_Target = XMVector3TransformCoord(ForwardVec, CamMatrix);
-	Camera_Target = XMVector3Normalize(Camera_Target);
+	camera.transform.pos += xValue * camera.transform.Right();
+	camera.transform.pos += zValue * camera.transform.Forward();
 
-	XMVECTOR RightVec = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
-	XMVECTOR cam_right = XMVector3TransformCoord(RightVec, Camera);
-	XMVECTOR cam_forward = XMVector3TransformCoord(ForwardVec, Camera);
-	Camera_up = XMVector3Cross(cam_forward, cam_right);
-
-	Camera_pos += xValue * cam_right;
-	Camera_pos += zValue * cam_forward;
-
-	Camera_Target = Camera_pos + Camera_Target;
-
-	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
-
-	return CamMatrix;
-
+	XMVECTOR pitch = XMQuaternionRotationAxis(camera.transform.Right(), Cam_y);
+	XMVECTOR yaw = XMQuaternionRotationAxis(XMVectorSet(0.f, 1.f, 0.f, 0.f), Cam_x);;
+	camera.transform.rotation = XMQuaternionMultiply(camera.transform.rotation, XMQuaternionMultiply(pitch, yaw));
+	Cam_x = 0.0f;
+	Cam_y = 0.0f;
 }
 void GetKey(double time)
 {
 	DIMOUSESTATE Curr_MouseState;
 	BYTE keyState[256];
 
-	DIKeyboard->Acquire();
-	DIMouse->Acquire();
-
+	hr = DIKeyboard->Acquire();
+	if (FAILED(hr))
+	{
+		MessageBox(0, "Get keyboard Acquire- Failed",
+			"Error", MB_OK);
+		return;
+	}
+	hr = DIMouse->Acquire();
+	if (FAILED(hr))
+	{
+		MessageBox(0, "Get mouse Acquire - Failed",
+			"Error", MB_OK);
+		return;
+	}
 	DIMouse->GetDeviceState(sizeof(DIMOUSESTATE), &Curr_MouseState);
 	DIKeyboard->GetDeviceState(sizeof(keyState), (LPVOID)&keyState);
 
-	float speed = 15.0f * time;
+	float speed = 5.0f * time;
+
+	xValue = 0.f;
+	zValue = 0.0f;
 
 	if (keyState[DIK_A] & 0x80)
 		xValue -= speed;
@@ -671,11 +712,11 @@ void GetKey(double time)
 		zValue += speed;
 	if (keyState[DIK_S] & 0x80)
 		zValue -= speed;
-	if ((Curr_MouseState.lX != Curr_MouseState.lX) || (Curr_MouseState.lY != Curr_MouseState.lY))
+	if ((Curr_MouseState.lX != g_MouseState.lX) || (Curr_MouseState.lY != g_MouseState.lY))
 	{
-		Cam_x += Curr_MouseState.lX * 0.001f;
+		Cam_x += Curr_MouseState.lX * 0.01f;
 
-		Cam_y += Curr_MouseState.lY * 0.001f;
+		Cam_y += Curr_MouseState.lY *0.01f;
 
 		g_MouseState = Curr_MouseState;
 	}
@@ -739,6 +780,9 @@ ModelImport ImportFbxModel(const char* FileName)
 	lImporter->Import(lScene);
 	lImporter->Destroy();
 	ProcessFbxMesh(lScene->GetRootNode(), &model);
+
+
+	//lScene->Clear();
 
 	return model;
 }
@@ -972,7 +1016,7 @@ void ProcessFbxMesh(FbxNode* Node, ModelImport* Model)
 
 			ProcessFbxMesh(childNode, Model);
 
-
+			delete[] indices;
 		}
 	}
 }
@@ -1032,17 +1076,20 @@ void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices,
 ModelImport CreateSphere(int LatLines, int LongLines)
 {
 	ModelImport sphere;
-	sphereMap.vertCount = ((LatLines - 2) * LongLines) + 2;
-	sphereMap.indexCount = ((LatLines - 3)*(LongLines) * 2) + (LongLines * 2);
+
+
+
 
 	float sphereYaw = 0.0f;
 	float spherePitch = 0.0f;
+	int vertCount = ((LatLines - 2) * LongLines) + 2;
+	int indicesCount = (((LatLines - 3)*(LongLines) * 2) + (LongLines * 2));
+	sphere.vertices.resize(vertCount);
 
 
-	sphere.vertices.resize(sphereMap.vertCount);
 	XMVECTOR currVertPos = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
 	XMStoreFloat4(&sphere.vertices[0].pos, currVertPos);
-	
+
 
 	for (DWORD i = 0; i < LatLines - 2; ++i)
 	{
@@ -1060,28 +1107,13 @@ ModelImport CreateSphere(int LatLines, int LongLines)
 		}
 	}
 
-	sphere.vertices[sphereMap.vertCount - 1].pos.x = 0.0f;
-	sphere.vertices[sphereMap.vertCount - 1].pos.y = 0.0f;
-	sphere.vertices[sphereMap.vertCount - 1].pos.z = -1.0f;
+	sphere.vertices[vertCount - 1].pos.x = 0.0f;
+	sphere.vertices[vertCount - 1].pos.y = 0.0f;
+	sphere.vertices[vertCount - 1].pos.z = -1.0f;
 
 
-	D3D11_BUFFER_DESC vertexBufferDesc;
-	ZeroMemory(&vertexBufferDesc, sizeof(vertexBufferDesc));
 
-	vertexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	vertexBufferDesc.ByteWidth = sizeof(Vertex) * sphereMap.vertCount;
-	vertexBufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	vertexBufferDesc.CPUAccessFlags = 0;
-	vertexBufferDesc.MiscFlags = 0;
-
-	D3D11_SUBRESOURCE_DATA vertexBufferData;
-
-	ZeroMemory(&vertexBufferData, sizeof(vertexBufferData));
-	vertexBufferData.pSysMem = &sphere.vertices[0];
-	hr = g_Device->CreateBuffer(&vertexBufferDesc, &vertexBufferData, &sphereMap.VertBuffer);
-
-
-	sphere.indices.resize((sphereMap.indexCount * 3));
+	sphere.indices.resize(indicesCount * 3);
 
 	int k = 0;
 	for (DWORD l = 0; l < LongLines - 1; ++l)
@@ -1104,7 +1136,7 @@ ModelImport CreateSphere(int LatLines, int LongLines)
 			sphere.indices[k] = i * LongLines + j + 1;
 			sphere.indices[k + 1] = i * LongLines + j + 2;
 			sphere.indices[k + 2] = (i + 1)*LongLines + j + 1;
-			
+
 			sphere.indices[k + 3] = (i + 1)*LongLines + j + 1;
 			sphere.indices[k + 4] = i * LongLines + j + 2;
 			sphere.indices[k + 5] = (i + 1)*LongLines + j + 2;
@@ -1125,29 +1157,15 @@ ModelImport CreateSphere(int LatLines, int LongLines)
 
 	for (DWORD l = 0; l < LongLines - 1; ++l)
 	{
-		sphere.indices[k] = sphereMap.vertCount - 1;
-		sphere.indices[k + 1] = (sphereMap.vertCount - 1) - (l + 1);
-		sphere.indices[k + 2] = (sphereMap.vertCount - 1) - (l + 2);
+		sphere.indices[k] = sphere.vertices.size() - 1;
+		sphere.indices[k + 1] = (vertCount - 1) - (l + 1);
+		sphere.indices[k + 2] = (vertCount - 1) - (l + 2);
 		k += 3;
 	}
 
-	sphere.indices[k] = sphereMap.vertCount - 1;
-	sphere.indices[k + 1] = (sphereMap.vertCount - 1) - LongLines;
-	sphere.indices[k + 2] = sphereMap.vertCount - 2;
-
-	D3D11_BUFFER_DESC indexBufferDesc;
-	ZeroMemory(&indexBufferDesc, sizeof(indexBufferDesc));
-
-	indexBufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	indexBufferDesc.ByteWidth = sizeof(DWORD) * sphereMap.indexCount * 3;
-	indexBufferDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	indexBufferDesc.CPUAccessFlags = 0;
-	indexBufferDesc.MiscFlags = 0;
-
-	D3D11_SUBRESOURCE_DATA iinitData;
-
-	iinitData.pSysMem = &sphere.indices[0];
-	g_Device->CreateBuffer(&indexBufferDesc, &iinitData, &sphereMap.IndexBuffer);
+	sphere.indices[k] = sphere.vertices.size() - 1;
+	sphere.indices[k + 1] = (vertCount - 1) - LongLines;
+	sphere.indices[k + 2] = vertCount - 2;
 
 
 	return sphere;
@@ -1170,7 +1188,7 @@ void CleanUp()
 	if (Transparency)Transparency->Release();
 	if (CCWcullMode)CCWcullMode->Release();
 	if (CWcullMode)CWcullMode->Release();
-
+	if (g_Reflection_PS) g_Reflection_PS->Release();
 	if (g_SwapChain1)g_SwapChain1->Release();
 	if (g_Device1)g_Device1->Release();
 	if (g_DevContext1)g_DevContext1->Release();
@@ -1178,7 +1196,6 @@ void CleanUp()
 	if (g_cbPFbuffer)g_cbPFbuffer->Release();
 	//////////////**************new**************////////////////////
 	if (g_PS_Solid)g_PS_Solid->Release();
-	if (SRV_tex)SRV_tex->Release();
 	if (g_SamplerState)g_SamplerState->Release();
 
 	for (int i = 0; i < models.size(); i++)
@@ -1213,14 +1230,17 @@ void CleanUp()
 	if (DirectInput)DirectInput->Release();
 
 	//skybox cleanup
-	if (sphereMap.IndexBuffer)sphereMap.IndexBuffer->Release();
-	if (sphereMap.VertBuffer)sphereMap.VertBuffer->Release();
-	if (sphereMap.srv)sphereMap.srv->Release();
 	if (sphere_PS)sphere_PS->Release();
 	if (sphere_VS)sphere_VS->Release();
 	if (DSLessEqual)DSLessEqual->Release();
 	if (RSCullNone)RSCullNone->Release();
-
+	if (skybox)
+	{
+		if (skybox->IndexBuffer)skybox->IndexBuffer->Release();
+		if (skybox->VertBuffer)skybox->VertBuffer->Release();
+		if (skybox->srv)skybox->srv->Release();
+		delete skybox;
+	}
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -1248,27 +1268,26 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return 0;
 }
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11PixelShader* PS, ID3D11VertexShader* VS, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor)
+void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor)
 {
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	CBufferPerObject cb;
-	cbPerFrame cbpf;
 	g_DevContext->IASetIndexBuffer(model->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
 	g_DevContext->IASetVertexBuffers(0, 1, &model->VertBuffer, &stride, &offset);
 
 	g_DevContext->IASetPrimitiveTopology(SetPrimitiveTopology);
 	cb.mWorld = XMMatrixTranspose(model->transform.createMatrix());
-	cb.mView = XMMatrixTranspose(View);
-	cb.mProjection = XMMatrixTranspose(Projection);
+	cb.mView = XMMatrixTranspose(camera.View());
+	cb.mProjection = XMMatrixTranspose(camera.projection);
 	cb.outputColor = outputColor;
 
-	XMStoreFloat4(&cbpf.CameraPos, Camera_pos);
+	XMStoreFloat4(&constBufferPF.CameraPos, camera.transform.pos);
 	g_DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
-
+	g_DevContext->UpdateSubresource(pfbuffer, 0, nullptr, &constBufferPF, 0, 0);
 	// Render  the axe
-	g_DevContext->VSSetShader(VS, nullptr, 0);
-	g_DevContext->PSSetShader(PS, nullptr, 0);
+	g_DevContext->VSSetShader(model->vs, nullptr, 0);
+	g_DevContext->PSSetShader(model->ps, nullptr, 0);
 	g_DevContext->VSSetConstantBuffers(0, 1, &buffer);
 	g_DevContext->PSSetConstantBuffers(0, 1, &buffer);
 	g_DevContext->VSSetConstantBuffers(1, 1, &pfbuffer);
@@ -1286,15 +1305,12 @@ void Render()
 	timer.Signal();
 
 	GetKey(timer.Delta());
-	
+
 
 	//camera imformation
-	Camera_pos = XMVectorSet(0.0f, 5.0f, -8.0f, 0.0f);
-	Camera_Target = XMVectorSet(0.0f, 0.0f, 0.0f, 0.0f);
-	Camera_up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	Camera = UpdateCamera();
-	View = XMMatrixLookAtLH(Camera_pos, Camera_Target, Camera_up);
-	Projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
+	UpdateCamera();
+	camera.projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
+
 	// Rotate the axe around the origin
 	{
 		XMVECTOR rot = XMQuaternionRotationRollPitchYaw(0.0f, 1.0f*timer.Delta(), 0.0f);
@@ -1344,26 +1360,22 @@ void Render()
 	setColor = XMFLOAT4(0, 0, 0, 0);
 	for (int i = 0; i < models.size(); i++)
 	{
-		
-		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_PS, g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
-		if (models[3])
-		{
-			RenderObject(models[3], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,g_Reflection_PS , g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
-		}
+
+		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
-	
+
 
 	for (int i = 0; i < lineModels.size(); i++)
 	{
 		setColor = XMFLOAT4(0, 0, 0, 0);
-		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST,g_PS_Solid , g_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
 
-	skybox->transform.pos = Camera_pos;
+	skybox->transform.pos = camera.transform.pos;
 	g_DevContext->OMSetDepthStencilState(DSLessEqual, 0);
 	g_DevContext->RSSetState(RSCullNone);
-	RenderObject(skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, sphere_PS, sphere_VS, g_cbPerObjBuffer, g_cbPFbuffer, setColor );
-	
+	RenderObject(skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);
 }

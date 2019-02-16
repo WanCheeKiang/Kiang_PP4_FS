@@ -7,6 +7,8 @@ cbuffer cbPerFrame : register(b1)
     SpotLight stLight;
     float time;
     float3 align;
+    float4 CameraPos;
+
 };
 
 cbuffer ConstantBuffer : register(b0)
@@ -15,7 +17,6 @@ cbuffer ConstantBuffer : register(b0)
     matrix mView;
     matrix mProjection;
     float4 outputColor;
-    float4 CameraPos;
 };
 
 Texture2D ObjTexture : register(t0);

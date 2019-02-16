@@ -5,9 +5,6 @@ cbuffer ConstantBuffer : register(b0)
     matrix mProjection;
     float4 outputColor;
 };
-Texture2D ObjTexture;
-SamplerState ObjSamplerState;
-TextureCube CubeMap;
 
 struct VS_INPUT
 {
@@ -25,11 +22,12 @@ struct VS_OUTPUT
 VS_OUTPUT main(VS_INPUT input)
 {
     VS_OUTPUT output = (VS_OUTPUT)0;
-    input.Pos.w = 1.0f;
-    output.Pos = mul(input.Pos, mWorld);
-    output.Pos = mul(input.Pos, mView);
-    output.Pos = mul(input.Pos, mProjection).xyww;
-    output.TexCoord = input.Pos;
+    float4 pos = input.Pos;
+    pos.w = 1.f;
+    pos = mul(pos, mWorld);
+    pos = mul(pos, mView);
+    output.Pos = mul(pos, mProjection).xyww;
+    output.TexCoord = input.Pos.xyz;
     return output;
     
 }

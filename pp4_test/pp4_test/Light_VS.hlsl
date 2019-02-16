@@ -25,8 +25,8 @@ cbuffer ConstantBuffer : register(b0)
   
 
 };
-Texture2D ObjTexture;
-SamplerState ObjSamplerState;
+Texture2D ObjTexture : register(t0);
+SamplerState ObjSamplerState : register(s0);
 
 struct VS_INPUT
 {

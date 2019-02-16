@@ -28,6 +28,14 @@ using namespace DirectX;
 #define ChestData_Ind 1812
 #include<dinput.h>
 
+#define _CRTDBG_MAP_ALLOC  
+#include <stdlib.h>  
+#include <crtdbg.h>  
+#include <iostream>
+#ifdef _DEBUG
+#define DEBUG_NEW new(_NORMAL_BLOCK, __FILE__, __LINE__)
+#define new DEBUG_NEW
+#endif
 //#include<D3DX11tex.h>
 using namespace std;
 
@@ -45,7 +53,7 @@ struct Transform
 	XMVECTOR scale;
 	XMMATRIX createMatrix()
 	{
-		return XMMatrixAffineTransformation(scale, XMVectorSet(0.0f,0.0f,0.0f,1.0f), rotation, pos);
+		return XMMatrixScalingFromVector(scale)*XMMatrixRotationQuaternion(rotation)*XMMatrixTranslationFromVector(pos);
 	}
 	Transform()
 	{
@@ -57,10 +65,26 @@ struct Transform
 
 	XMVECTOR Forward()
 	{
-			XMVECTOR forward = XMVectorSet(0.f, 0.f, 1.f, 0.f);
-			XMVECTOR direction = XMVector3Rotate(forward, rotation);
+			XMVECTOR dir = XMVectorSet(0.f, 0.f, 1.f, 0.f);
+			XMVECTOR direction = XMVector3Rotate(dir, rotation);
 
 			return direction;
+	}
+
+	XMVECTOR Right()
+	{
+		XMVECTOR dir = XMVectorSet(1.f, 0.f, 0.f, 0.f);
+		XMVECTOR direction = XMVector3Rotate(dir, rotation);
+
+		return direction;
+	}
+
+	XMVECTOR Up()
+	{
+		XMVECTOR dir = XMVectorSet(0.f, 1.f, 0.f, 0.f);
+		XMVECTOR direction = XMVector3Rotate(dir, rotation);
+
+		return direction;
 	}
 };
 struct DirectionalLight
@@ -130,6 +154,8 @@ struct ModelBuffer
 {
 	ID3D11Buffer* VertBuffer;
 	ID3D11Buffer* IndexBuffer;
+	ID3D11VertexShader* vs;
+	ID3D11PixelShader* ps;
 	ID3D11ShaderResourceView* srv;
 	int vertCount;
 	int indexCount;
@@ -139,6 +165,8 @@ struct ModelBuffer
 	{
 		VertBuffer = nullptr;
 		IndexBuffer = nullptr;
+		vs = nullptr;
+		ps = nullptr;
 		srv = nullptr;
 	}
 };

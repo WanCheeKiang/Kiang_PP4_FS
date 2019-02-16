@@ -6,9 +6,8 @@ cbuffer ConstantBuffer : register(b0)
     float4 outputColor;
 };
 
-Texture2D ObjTexture;
-SamplerState ObjSamplerState;
-TextureCube CubeMap;
+SamplerState ObjSamplerState : register(s0);
+TextureCube CubeMap : register(t0);
 
 struct PS_INPUT
 {
