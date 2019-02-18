@@ -1,6 +1,6 @@
 #include"includes.h"
-#include"GetFile.h"
 #include"XTime.h"
+#include"LoadObject.h"
 //Global : Interface
 ID3D11Device* g_Device = nullptr;
 IDXGISwapChain* g_SwapChain = nullptr;
@@ -44,16 +44,6 @@ HINSTANCE g_hInst = nullptr;
 XMMATRIX WVP;
 XMMATRIX World;
 //camera value
-struct Camera
-{
-	XMMATRIX projection;
-	Transform transform;
-
-	XMMATRIX View()
-	{
-		return XMMatrixInverse(nullptr, transform.createMatrix());
-	}
-};
 
 Camera camera;
 float rotate = 0.01f;
@@ -63,6 +53,8 @@ float scale = 1.0f;
 
 float xValue = 0.0f; //value for move right && left
 float zValue = 0.0f; //value for move back && forward
+
+LoadObject loadObj;
 //get input
 DIMOUSESTATE g_MouseState;
 IDirectInputDevice8* DIKeyboard;
@@ -73,16 +65,10 @@ HRESULT CompileShader(_In_ LPCWSTR srcFile, _In_ LPCSTR entryPoint, _In_ LPCSTR 
 HRESULT InitWindow(HINSTANCE hInstance, int nCmdShow);
 HRESULT InitDevice();
 HRESULT InitInput(HINSTANCE hInstance);
-void ProcessFbxMesh(FbxNode* Node, ModelImport* Model);
-void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model);
 void UpdateCamera();
 void GetKey(double time);
-ModelImport MakeGrid(int width, int height);
-ModelImport ImportFbxModel(const char* FileName);
-ModelBuffer* CreateModelBuffer(ModelImport, const wchar_t* TextureName = nullptr);
-ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
-ModelImport CreateSphere(int LatLines, int LongLine);
+void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs);
+void CreatePixelShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11PixelShader* vs);
 void Render();
 void CleanUp();
 
@@ -490,21 +476,24 @@ HRESULT InitDevice()
 
 	hr = CompileShader(L"CubeMap_VS.hlsl", "main", "vs_4_0", &pVSBlob);
 	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &sphere_VS);
+	
 	hr = CompileShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &sphere_PS);
 	pPSBlob->Release();
 	pVSBlob->Release();
+	//CreateVertexShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", sphere_VS);
+	//CreatePixelShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", sphere_PS);
 
 	pPSBlob = nullptr;
 	hr = CompileShader(L"Reflection_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Reflection_PS);
 	pPSBlob->Release();
 
-	models.push_back(CreateModelBuffer(ImportFbxModel("Axe Asset\\Axe_1.fbx"), L"Axe Asset\\axeTexture.dds"));
-	models.push_back(CreateModelBuffer(LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
-	models.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\wall.fbx"), L"Solid Object Assets\\stone_texture.dds"));
-	models.push_back(CreateModelBuffer(ImportFbxModel("Solid Object Assets\\sphere.fbx"), L"SkyboxOcean.dds"));
-	lineModels.push_back(CreateModelBuffer(MakeGrid(15, 15), nullptr));
+	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx",scale), L"Axe Asset\\axeTexture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx",scale), L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx",scale), L"SkyboxOcean.dds"));
+	lineModels.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
 	models[0]->transform.pos = XMVectorSet(-2.0f, 0.0f, 0.0f, 1.0f);
@@ -534,7 +523,7 @@ HRESULT InitDevice()
 		}
 	}
 
-	skybox = CreateModelBuffer(CreateSphere(10, 10), L"SkyboxOcean.dds");
+	skybox = loadObj.CreateModelBuffer(g_Device,loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"SkyboxOcean.dds");
 	skybox->vs = sphere_VS;
 	skybox->ps = sphere_PS;
 	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f, 1.0f);
@@ -633,35 +622,55 @@ HRESULT InitInput(HINSTANCE hInstance)
 		return hr;
 	return hr;
 }
-ModelBuffer* CreateModelBuffer(ModelImport model, const wchar_t* TextureName)
+void CreateVertexShader( LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs)
 {
-	ModelBuffer* buffer = new ModelBuffer;
-	buffer->indexCount = model.indices.size();
-	buffer->vertCount = model.vertices.size();
+	ID3DBlob* VSBlob = nullptr;
+	//UINT numElements = ARRAYSIZE(layout1);
+	/*hr = g_Device->CreateInputLayout(layout1, numElements, VSBlob->GetBufferPointer(),
+		VSBlob->GetBufferSize(), &g_vertLayout);
+	VSBlob->Release();*/
+	
 
-	D3D11_BUFFER_DESC bd = {};
-	//set vertex buffer
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(Vertex)*model.vertices.size();
-	bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = 0;
+	// Set the input layout
+	g_DevContext->IASetInputLayout(g_vertLayout);
+	//vertex shader
+	VSBlob = nullptr;
+	hr = CompileShader(srcFile, entryPoint, profile, &VSBlob);
+	if (FAILED(hr))
+	{
+		MessageBox(nullptr,
+			"The VS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+		return;
+	}
 
-	D3D11_SUBRESOURCE_DATA initData = {};
-	initData.pSysMem = model.vertices.data();
-	g_Device->CreateBuffer(&bd, &initData, &buffer->VertBuffer);
+	hr = g_Device->CreateVertexShader(VSBlob->GetBufferPointer(), VSBlob->GetBufferSize(), nullptr, &vs);
+	if (FAILED(hr))
+	{
+		MessageBox(nullptr,
+			"The VS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+		return;
+	}
+	VSBlob->Release();
+
+}
+
+void CreatePixelShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11PixelShader* ps)
+{
+	ID3DBlob* PSBlob = nullptr;
+	//vertex shader
+	hr = CompileShader(srcFile, entryPoint, profile, &PSBlob);
+	if (FAILED(hr))
+	{
+		MessageBox(nullptr,
+			"The PS.hlsl file cannot be compiled.  Please run this executable from the directory that contains the hlsl file.", "Error", MB_OK);
+		return;
+	}
 
 
-	//set index buffer
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(int)*model.indices.size();
-	bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-	initData.pSysMem = model.indices.data();
-	g_Device->CreateBuffer(&bd, &initData, &buffer->IndexBuffer);
-	if (TextureName != nullptr)
-		CreateDDSTextureFromFile(g_Device, TextureName, nullptr, &buffer->srv);
+	hr = g_Device->CreatePixelShader(PSBlob->GetBufferPointer(), PSBlob->GetBufferSize(), nullptr, &ps);
 
-	return buffer;
+	PSBlob->Release();
+
 }
 
 float Cam_x = 0.0f;
@@ -721,455 +730,79 @@ void GetKey(double time)
 		g_MouseState = Curr_MouseState;
 	}
 }
-ModelImport MakeGrid(int width, int height)
+
+
+
+bool LoadHeightMap(char* filename, HeightMap &heightmap)
 {
-	ModelImport model;
-	for (int i = 0; i < width; i++)
-	{
-		for (int j = 0; j < height; j++)
-		{
-			Vertex v;
-			v.normal = XMFLOAT3(0.f, 1.f, 0.f);
-			v.Texture.x = i / (width - 1);
-			v.Texture.y = j / (height - 1);
-			v.pos.x = -0.5f + ((float)i / (width - 1));
-			v.pos.y = 0.0f;
-			v.pos.z = -0.5f + ((float)j / (height - 1));
-
-			model.vertices.push_back(v);
-		}
-	}
-
-	for (int i = 0; i < height; i++)
-	{
-		int start = i;
-		int end = (width - 1)*height + i;
-		model.indices.push_back(start);
-		model.indices.push_back(end);
-	}
-
-	for (int i = 0; i < width; i++)
-	{
-		int start = i * height;
-		int end = height - 1 + i * height;
-		model.indices.push_back(start);
-		model.indices.push_back(end);
-	}
-
-	return model;
-}
-ModelImport ImportFbxModel(const char* FileName)
-{
-
-	ModelImport model;
-	const char* lFilename = FileName;// "Axe Asset\\Axe_1.fbx";
-
-	FbxManager* lSdkManager = FbxManager::Create();
-	FbxIOSettings *ios = FbxIOSettings::Create(lSdkManager, IOSROOT);
-	lSdkManager->SetIOSettings(ios);
-
-	FbxImporter* lImporter = FbxImporter::Create(lSdkManager, "");
-	if (!lImporter->Initialize(lFilename, -1, lSdkManager->GetIOSettings()))
-	{
-		printf("Call to FbxImporter::Initialize() failed.\n");
-		printf("Error returned: %s\n\n", lImporter->GetStatus().GetErrorString());
-		exit(-1);
-	}
-
-	FbxScene* lScene = FbxScene::Create(lSdkManager, "myScene");
-	lImporter->Import(lScene);
-	lImporter->Destroy();
-	ProcessFbxMesh(lScene->GetRootNode(), &model);
-
-
-	//lScene->Clear();
-
-	return model;
-}
-ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices)
-{
-
-	ModelImport model;
-	model.indices.resize(numIndices);
-	model.vertices.resize(numVertices);
-
-
-	float objScale = 0.5f;
-
-	for (int i = 0; i < numVertices; i++)
-	{
-
-		model.vertices[i].pos.x = verts[i].pos[0] * objScale;
-		model.vertices[i].pos.y = verts[i].pos[1] * objScale;
-		model.vertices[i].pos.z = verts[i].pos[2] * objScale;
-		model.vertices[i].pos.w = 1.0f;
-		model.vertices[i].normal.x = verts[i].nrm[0];
-		model.vertices[i].normal.y = verts[i].nrm[1];
-		model.vertices[i].normal.z = verts[i].nrm[2];
-
-		model.vertices[i].Texture.x = verts[i].uvw[0];
-		model.vertices[i].Texture.y = verts[i].uvw[1];
-
-	}
-
-	for (int i = 0; i < numIndices; i++)
-	{
-		model.indices[i] = indices[i];
-	}
-
-	return model;
-
-}
-void ProcessFbxMesh(FbxNode* Node, ModelImport* Model)
-{
-	// set up output console
-	AllocConsole();
-	freopen("CONOUT$", "w", stdout);
-	freopen("CONOUT$", "w", stderr);
-
-	//FBX Mesh stuff
-	int childrenCount = Node->GetChildCount();
-
-	cout << "\nName:" << Node->GetName();
-
-	// Get the Normals array from the mesh
-	FbxArray<FbxVector4> normalsVec;
-
-	for (int i = 0; i < childrenCount; i++)
-	{
-		FbxNode *childNode = Node->GetChild(i);
-		FbxMesh *mesh = childNode->GetMesh();
-
-		int materialCount = childNode->GetSrcObjectCount<FbxSurfaceMaterial>();
-		if (mesh != NULL)
-		{
-			cout << "\nMesh:" << childNode->GetName();
-
-			// Get index count from mesh
-			int numIndices = mesh->GetPolygonVertexCount();
-			cout << "\nIndice Count:" << numIndices;
-
-			// No need to allocate int array, FBX does for us
-			int* indices = mesh->GetPolygonVertices();
-
-			// Get vertex count from mesh
-			int numVertices = mesh->GetControlPointsCount();
-			cout << "\nVertex Count:" << numVertices;
-
-			mesh->GetPolygonVertexNormals(normalsVec);
-			cout << "\nNormalVec Count:" << normalsVec.Size();
-
-			// Create SimpleVertex array to size of this mesh
-			Vertex* vertices = new Vertex[numVertices];
-
-			for (int index = 0; index < materialCount; index++)
-			{
-				FbxSurfaceMaterial* material = (FbxSurfaceMaterial*)childNode->GetSrcObject<FbxSurfaceMaterial>(index);
-
-				if (material != nullptr)
-				{
-					cout << "\nmaterial: " << material->GetName() << std::endl;
-					FbxProperty fbxProp = material->FindProperty(FbxSurfaceMaterial::sDiffuse);
-
-					int layeredTExtureCount = fbxProp.GetSrcObjectCount<FbxLayeredTexture>();
-
-					if (layeredTExtureCount > 0)
-					{
-						for (int j = 0; j < layeredTExtureCount; j++)
-						{
-							FbxLayeredTexture* layered_texture =
-								FbxCast<FbxLayeredTexture>(fbxProp.GetSrcObject<FbxLayeredTexture>(j));
-							int layercount = layered_texture->GetSrcObjectCount<FbxTexture>();
-
-							for (int k = 0; k < layercount; k++)
-							{
-								FbxFileTexture* texture =
-									FbxCast<FbxFileTexture>(layered_texture->GetSrcObject<FbxTexture>(k));
-								const char* textureName = texture->GetFileName();
-								cout << textureName;
-							}
-						}
-					}
-					else
-					{
-						int textureCount = fbxProp.GetSrcObjectCount<FbxTexture>();
-						for (int j = 0; j < textureCount; j++)
-						{
-							FbxFileTexture* texture = FbxCast<FbxFileTexture>(fbxProp.GetSrcObject<FbxTexture>(j));
-							const char* textureName = texture->GetFileName();
-							cout << textureName;
-							FbxProperty p = texture->RootProperty.Find("Filename");
-							cout << p.Get<FbxString>() << std::endl;
-						}
-					}
-				}
-			}
-
-			FbxStringList UvNameList;
-			mesh->GetUVSetNames(UvNameList);
-			FbxVector2 UVvalue2;
-
-
-			//================= Process Vertices ===================
-			for (int j = 0; j < numVertices; j++)
-			{
-				FbxVector4 vert = mesh->GetControlPointAt(j);
-				vertices[j].pos.x = (float)vert.mData[0] / scale;
-				vertices[j].pos.y = (float)vert.mData[1] / scale;
-				vertices[j].pos.z = (float)vert.mData[2] / scale;
-			}
-			// Declare a new array for the second vertex array
-			// Note the size is numIndices not numVertices
-			Vertex *vertices2 = new Vertex[numIndices];
-			// align (expand) vertex array and set the normals
-			for (int j = 0; j < numIndices; j++)
-			{
-				vertices2[j].pos = vertices[indices[j]].pos;
-				vertices2[j].normal.x = (float)normalsVec[j][0];
-				vertices2[j].normal.y = (float)normalsVec[j][1];
-				vertices2[j].normal.z = (float)normalsVec[j][2];
-			}
-
-			for (int UVindex = 0; UVindex < UvNameList.GetCount(); UVindex++)
-			{
-				const char* UvSetName = UvNameList.GetStringAt(UVindex);
-				FbxGeometryElementUV* UVelement = mesh->GetElementUV(UvSetName);
-				if (!UVelement)
-					continue;
-				if (UVelement->GetMappingMode() != FbxGeometryElement::eByPolygonVertex&&
-					UVelement->GetMappingMode() != FbxGeometryElement::eByControlPoint)
-					return;
-				const bool useIndex = UVelement->GetReferenceMode() != FbxGeometryElement::eDirect;
-				const int IndexCount = (useIndex) ? UVelement->GetIndexArray().GetCount() : 0;
-
-				const int PolyCount = mesh->GetPolygonCount();
-
-				if (UVelement->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-				{
-					for (int PolyIndex = 0; PolyIndex < PolyCount; PolyIndex++)
-					{
-						const int PolySize = mesh->GetPolygonSize(PolyIndex);
-						for (int vertIndex = 0; vertIndex < PolySize; vertIndex++)
-						{
-							FbxVector2 UVvalue;
-							int PolyVertIndex = mesh->GetPolygonVertex(PolyIndex, vertIndex);
-							int UVindex = useIndex ? UVelement->GetIndexArray().GetAt(PolyVertIndex) : PolyVertIndex;
-							UVvalue = UVelement->GetDirectArray().GetAt(UVindex);
-							vertices2[PolyIndex].Texture.x = (float)UVvalue.mData[0];
-							vertices2[PolyIndex].Texture.y = 1.0f - (float)UVvalue.mData[1];
-						}
-					}
-				}
-				else if (UVelement->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
-				{
-					int PolyIndexCounter = 0;
-					for (int PolyIndex = 0; PolyIndex < PolyCount; ++PolyIndex)
-					{
-						// build the max index array that we need to pass into MakePoly
-						const int PolySize = mesh->GetPolygonSize(PolyIndex);
-						for (int VertIndex = 0; VertIndex < PolySize; ++VertIndex)
-						{
-							if (PolyIndexCounter < IndexCount)
-							{
-
-								//the UV index depends on the reference mode
-								int lUVIndex = useIndex ? UVelement->GetIndexArray().GetAt(PolyIndexCounter) : PolyIndexCounter;
-
-								UVvalue2 = UVelement->GetDirectArray().GetAt(lUVIndex);
-								vertices2[PolyIndexCounter].Texture.x = (float)UVvalue2.mData[0];
-								vertices2[PolyIndexCounter].Texture.y = 1.0f - (float)UVvalue2.mData[1];
-
-								PolyIndexCounter++;
-							}
-						}
-					}
-				}
-
-			}
-
-			// vertices is an "out" var so make sure it points to the new array
-			// and clean up first array
-			delete vertices;
-			vertices = vertices2;
-
-			// make new indices to match the new vertex(2) array
-			delete indices;
-			indices = new int[numIndices];
-			for (int j = 0; j < numIndices; j++)
-			{
-				indices[j] = j;
-			}
-
-			if (true)
-			{
-
-				Compactify(numIndices, numVertices, vertices, indices, *Model);
-			}
-
-			else
-			{
-				// numVertices is an "out" var so set to new size
-				// this is used in the DrawIndexed functions to set the 
-				// the right number of triangles
-				numVertices = numIndices;
-			}
-
-			ProcessFbxMesh(childNode, Model);
-
-			delete[] indices;
-		}
-	}
-}
-void Compactify(int numIndices, int numVertices, Vertex* vertices, int* indices, ModelImport& model)
-{
-	float epsilon = 0.1001f;
-
-	cout << "\nindex count BEFORE/AFTER compaction " << numIndices;
-	cout << "\nvertex count ORIGINAL (FBX source): " << numVertices;
-	//check if thers indices and vertices are repeated
-	for (int i = 0; i < numIndices; i++)
-	{
-		bool found = false;
-		unsigned int j;
-		for (j = 0; j < model.vertices.size(); j++)
-		{
-			if (abs(vertices[indices[i]].pos.x - model.vertices[j].pos.x) < epsilon	&&
-				abs(vertices[indices[i]].pos.y - model.vertices[j].pos.y) < epsilon	&&
-				abs(vertices[indices[i]].pos.z - model.vertices[j].pos.z) < epsilon	&&
-				vertices[indices[i]].normal.x == model.vertices[j].normal.x	&&
-				vertices[indices[i]].normal.y == model.vertices[j].normal.y	&&
-				vertices[indices[i]].normal.z == model.vertices[j].normal.z &&
-				vertices[indices[i]].Texture.x == model.vertices[j].Texture.x    &&
-				vertices[indices[i]].Texture.y == model.vertices[j].Texture.y)
-			{
-				found = true;
-				break;
-			}
-
-		}
-		if (found == true)
-		{
-			indices[i] = j;
-		}
-		else
-		{
-			model.vertices.push_back(vertices[indices[i]]);
-			indices[i] = model.vertices.size() - 1;
-		}
-	}
-
-	delete vertices;
-	model.indices.resize(numIndices);
-	for (int i = 0; i < numIndices; i++)
-	{
-		model.indices[i] = indices[i];
-	}
-	numVertices = model.vertices.size();
-	// print out some stats
-
-	cout << "\nvertex count AFTER expansion: " << numIndices;
-	cout << "\nvertex count AFTER compaction: " << model.vertices.size();
-	cout << "\nSize reduction: " << ((numIndices - model.vertices.size()) / (float)numIndices)*100.00f << "%";
-	cout << "\nor " << (model.vertices.size() / (float)numIndices) << " of the expanded size";
-
-}
-ModelImport CreateSphere(int LatLines, int LongLines)
-{
-	ModelImport sphere;
-
-
-
-
-	float sphereYaw = 0.0f;
-	float spherePitch = 0.0f;
-	int vertCount = ((LatLines - 2) * LongLines) + 2;
-	int indicesCount = (((LatLines - 3)*(LongLines) * 2) + (LongLines * 2));
-	sphere.vertices.resize(vertCount);
-
-
-	XMVECTOR currVertPos = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-	XMStoreFloat4(&sphere.vertices[0].pos, currVertPos);
-
-
-	for (DWORD i = 0; i < LatLines - 2; ++i)
-	{
-		spherePitch = (i + 1) * (3.14 / (LatLines - 1));
-		g_RotationMatrix.Rotationx = XMMatrixRotationX(spherePitch);
-		for (DWORD j = 0; j < LongLines; ++j)
-		{
-			sphereYaw = j * (6.28 / (LongLines));
-			g_RotationMatrix.Rotationy = XMMatrixRotationZ(sphereYaw);
-			currVertPos = XMVector3TransformNormal(XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f), (g_RotationMatrix.Rotationx * g_RotationMatrix.Rotationy));
-			currVertPos = XMVector3Normalize(currVertPos);
-			sphere.vertices[i*LongLines + j + 1].pos.x = XMVectorGetX(currVertPos);
-			sphere.vertices[i*LongLines + j + 1].pos.y = XMVectorGetY(currVertPos);
-			sphere.vertices[i*LongLines + j + 1].pos.z = XMVectorGetZ(currVertPos);
-		}
-	}
-
-	sphere.vertices[vertCount - 1].pos.x = 0.0f;
-	sphere.vertices[vertCount - 1].pos.y = 0.0f;
-	sphere.vertices[vertCount - 1].pos.z = -1.0f;
-
-
-
-	sphere.indices.resize(indicesCount * 3);
-
+	FILE *filePtr;                            // Point to the current position in the file
+	BITMAPFILEHEADER bitmapFileHeader;        // Structure which stores information about file
+	BITMAPINFOHEADER bitmapInfoHeader;        // Structure which stores information about image
+	int imageSize, index;
+	unsigned char height;
+
+	filePtr = fopen(filename, "");
+	if (filePtr == nullptr)
+		return 0;
+	//read file header
+	fread(&bitmapFileHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
+	//read info header
+	fread(&bitmapInfoHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
+
+	heightmap.width = bitmapInfoHeader.biWidth;
+	heightmap.height = bitmapInfoHeader.biHeight;
+
+	// Size of the image in bytes. the 3 represents RBG (byte, byte, byte) for each pixel
+	imageSize = heightmap.width * heightmap.height * 3;
+
+	// Initialize the array which stores the image data
+	unsigned char* bitmapImage = new unsigned char[imageSize];
+
+	// Set the file pointer to the beginning of the image data
+	fseek(filePtr, bitmapFileHeader.bfOffBits, SEEK_SET);
+
+	// Store image data in bitmapImage
+	fread(bitmapImage, 1, imageSize, filePtr);
+
+	// Close file
+	fclose(filePtr);
+
+	// Initialize the heightMap array (stores the vertices of our terrain)
+	heightmap.heightMap = new XMFLOAT3[heightmap.width * heightmap.height];
+
+	// We use a greyscale image, so all 3 rgb values are the same, but we only need one for the height
+	// So we use this counter to skip the next two components in the image data (we read R, then skip BG)
 	int k = 0;
-	for (DWORD l = 0; l < LongLines - 1; ++l)
-	{
-		sphere.indices[k] = 0;
-		sphere.indices[k + 1] = l + 1;
-		sphere.indices[k + 2] = l + 2;
-		k += 3;
-	}
 
-	sphere.indices[k] = 0;
-	sphere.indices[k + 1] = LongLines;
-	sphere.indices[k + 2] = 1;
-	k += 3;
+	// We divide the height by this number to "water down" the terrains height, otherwise the terrain will
+	// appear to be "spikey" and not so smooth.
+	float heightFactor = 10.0f;
 
-	for (DWORD i = 0; i < LatLines - 3; ++i)
+	// Read the image data into our heightMap array
+	for (int j = 0; j < heightmap.height; j++)
 	{
-		for (DWORD j = 0; j < LongLines - 1; ++j)
+		for (int i = 0; i < heightmap.width; i++)
 		{
-			sphere.indices[k] = i * LongLines + j + 1;
-			sphere.indices[k + 1] = i * LongLines + j + 2;
-			sphere.indices[k + 2] = (i + 1)*LongLines + j + 1;
+			height = bitmapImage[k];
 
-			sphere.indices[k + 3] = (i + 1)*LongLines + j + 1;
-			sphere.indices[k + 4] = i * LongLines + j + 2;
-			sphere.indices[k + 5] = (i + 1)*LongLines + j + 2;
+			index = (heightmap.height * j) + i;
 
-			k += 6; // next quad
+			heightmap.heightMap[index].x = (float)i;
+			heightmap.heightMap[index].y = (float)height / heightFactor;
+			heightmap.heightMap[index].z = (float)j;
+
+			k += 3;
 		}
-
-		sphere.indices[k] = (i*LongLines) + LongLines;
-		sphere.indices[k + 1] = (i*LongLines) + 1;
-		sphere.indices[k + 2] = ((i + 1)*LongLines) + LongLines;
-
-		sphere.indices[k + 3] = ((i + 1)*LongLines) + LongLines;
-		sphere.indices[k + 4] = (i*LongLines) + 1;
-		sphere.indices[k + 5] = ((i + 1)*LongLines) + 1;
-
-		k += 6;
 	}
 
-	for (DWORD l = 0; l < LongLines - 1; ++l)
-	{
-		sphere.indices[k] = sphere.vertices.size() - 1;
-		sphere.indices[k + 1] = (vertCount - 1) - (l + 1);
-		sphere.indices[k + 2] = (vertCount - 1) - (l + 2);
-		k += 3;
-	}
+	delete[] bitmapImage;
+	bitmapImage = 0;
 
-	sphere.indices[k] = sphere.vertices.size() - 1;
-	sphere.indices[k + 1] = (vertCount - 1) - LongLines;
-	sphere.indices[k + 2] = vertCount - 2;
+	return true;
 
-
-	return sphere;
 }
+
+
 void CleanUp()
 {
 	//Release the COM Objects we created
@@ -1268,36 +901,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return 0;
 }
-void RenderObject(ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor)
-{
-	UINT stride = sizeof(Vertex);
-	UINT offset = 0;
-	CBufferPerObject cb;
-	g_DevContext->IASetIndexBuffer(model->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
-	g_DevContext->IASetVertexBuffers(0, 1, &model->VertBuffer, &stride, &offset);
 
-	g_DevContext->IASetPrimitiveTopology(SetPrimitiveTopology);
-	cb.mWorld = XMMatrixTranspose(model->transform.createMatrix());
-	cb.mView = XMMatrixTranspose(camera.View());
-	cb.mProjection = XMMatrixTranspose(camera.projection);
-	cb.outputColor = outputColor;
-
-	XMStoreFloat4(&constBufferPF.CameraPos, camera.transform.pos);
-	g_DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
-	g_DevContext->UpdateSubresource(pfbuffer, 0, nullptr, &constBufferPF, 0, 0);
-	// Render  the axe
-	g_DevContext->VSSetShader(model->vs, nullptr, 0);
-	g_DevContext->PSSetShader(model->ps, nullptr, 0);
-	g_DevContext->VSSetConstantBuffers(0, 1, &buffer);
-	g_DevContext->PSSetConstantBuffers(0, 1, &buffer);
-	g_DevContext->VSSetConstantBuffers(1, 1, &pfbuffer);
-	g_DevContext->PSSetConstantBuffers(1, 1, &pfbuffer);
-
-	g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
-	g_DevContext->PSSetShaderResources(0, 1, &model->srv);
-	g_DevContext->DrawIndexed(model->indexCount, 0, 0);
-
-}
 void Render()
 {
 	// Update our time
@@ -1361,20 +965,20 @@ void Render()
 	for (int i = 0; i < models.size(); i++)
 	{
 
-		RenderObject(models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		loadObj.RenderObject(g_DevContext,camera,constBufferPF,g_SamplerState,models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
 
 
 	for (int i = 0; i < lineModels.size(); i++)
 	{
 		setColor = XMFLOAT4(0, 0, 0, 0);
-		RenderObject(lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
 
 	skybox->transform.pos = camera.transform.pos;
 	g_DevContext->OMSetDepthStencilState(DSLessEqual, 0);
 	g_DevContext->RSSetState(RSCullNone);
-	RenderObject(skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+	loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);

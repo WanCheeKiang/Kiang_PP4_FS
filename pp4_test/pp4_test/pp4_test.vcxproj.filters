@@ -24,6 +24,9 @@
     <ClCompile Include="XTime.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="LoadObject.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="includes.h">
@@ -42,6 +45,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ShaderIncludes.hlsl" />
+    <ClInclude Include="LoadObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Light_PS.hlsl" />
@@ -49,5 +55,6 @@
     <FxCompile Include="CubeMap_VS.hlsl" />
     <FxCompile Include="CubeMap_PS.hlsl" />
     <FxCompile Include="Reflection_PS.hlsl" />
+    <FxCompile Include="PostProcess_VS.hlsl" />
   </ItemGroup>
 </Project>

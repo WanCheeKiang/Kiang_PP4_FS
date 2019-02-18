@@ -192,6 +192,25 @@ struct RotationMatrixs
 	XMMATRIX Rotationy;
 	XMMATRIX Rotationz;
 };
+
+struct HeightMap
+{
+	int width;
+	int height;
+	XMFLOAT3* heightMap;
+};
+
+struct Camera
+{
+	XMMATRIX projection;
+	Transform transform;
+
+	XMMATRIX View()
+	{
+		return XMMatrixInverse(nullptr, transform.createMatrix());
+	}
+};
+
 #define s_width 500
 #define s_height 500
 #define BACKBUFFER_WIDTH	500
