@@ -420,9 +420,6 @@ ModelImport LoadObject::ImportFbxModel(const char* FileName, float scale)
 	lImporter->Destroy();
 	ProcessFbxMesh(lScene->GetRootNode(), &model,scale);
 
-
-	//lScene->Clear();
-
 	return model;
 }
 ModelBuffer* LoadObject::CreateModelBuffer(ID3D11Device* device,ModelImport model, const wchar_t* TextureName)
@@ -520,3 +517,23 @@ void LoadObject::RenderObject(ID3D11DeviceContext* DevContext, Camera camera, cb
 	DevContext->DrawIndexed(model->indexCount, 0, 0);
 
 }
+void LoadObject::InstanceRender(ID3D11DeviceContext* DevContext,ID3D11InputLayout* inputlayout , int vertexCount, int instancesCount, ID3D11PixelShader* ps, ID3D11VertexShader*vs, ID3D11SamplerState* SamplerState)
+{
+	DevContext->IASetInputLayout(inputlayout);
+
+	DevContext->VSSetShader(vs, nullptr, 0);
+	DevContext->PSSetShader(ps, nullptr, 0);
+	DevContext->PSSetSamplers(0, 1, &SamplerState);
+
+	DevContext->DrawInstanced(vertexCount, instancesCount, 0, 0);
+}
+
+void LoadObject::MultiTexture(const wchar_t* TextureName1, const wchar_t* TextureName2, ID3D11Device* device)
+{
+	ID3D11ShaderResourceView* textures_srv[2];
+	if (TextureName1 != nullptr)
+		CreateDDSTextureFromFile(device, TextureName1, nullptr, &textures_srv[0]);
+	if (TextureName2 != nullptr)
+		CreateDDSTextureFromFile(device, TextureName2, nullptr, &textures_srv[1]);
+}
+

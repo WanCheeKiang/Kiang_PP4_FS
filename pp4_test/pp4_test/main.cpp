@@ -1,9 +1,11 @@
-#include"includes.h"
+﻿#include"includes.h"
 #include"XTime.h"
 #include"LoadObject.h"
+#include"MathLib.h"
 //Global : Interface
 ID3D11Device* g_Device = nullptr;
 IDXGISwapChain* g_SwapChain = nullptr;
+IDXGISwapChain* g_SwapChain_2nd = nullptr;
 ID3D11DeviceContext* g_DevContext = nullptr;
 ID3D11RenderTargetView* g_rtv = nullptr;
 ID3D11DepthStencilView* g_depthStencilView;
@@ -11,6 +13,7 @@ ID3D11Texture2D* g_depthStencilBuffer;
 ID3D11InputLayout* g_vertLayout;
 //Shadder
 ID3D11VertexShader* g_VS = nullptr;
+ID3D11VertexShader* g_Wave_VS = nullptr;
 ID3D11PixelShader* g_PS = nullptr;
 ID3D11PixelShader*  g_PS_Solid = nullptr;
 ID3D11PixelShader* g_Reflection_PS = nullptr;
@@ -18,8 +21,7 @@ ID3D11PixelShader* g_Reflection_PS = nullptr;
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
 ID3D11Buffer* g_cbPerObjBuffer = nullptr;
-ID3D11Buffer* obj_VertBuffer = nullptr;
-ID3D11Buffer* obj_IndexBuffer = nullptr;
+ID3D11Buffer* g_InstanceBuffer = nullptr;
 //State
 ID3D11BlendState* Transparency = nullptr;
 ID3D11RasterizerState* CCWcullMode = nullptr;
@@ -78,6 +80,7 @@ CBufferPerObject cbPerOBj;
 DirectionalLight Dirlight;
 PointLight Ptlight;
 SpotLight StLight;
+
 cbPerFrame constBufferPF;
 ID3D11ShaderResourceView* obj_srv;
 vector<ModelBuffer*> models;
@@ -89,7 +92,10 @@ ID3D11PixelShader* sphere_PS = nullptr;
 ID3D11DepthStencilState* DSLessEqual = nullptr;
 ID3D11RasterizerState* RSCullNone = nullptr;
 RotationMatrixs g_RotationMatrix;
-
+XMVECTOR g_Up = { 0.0f,1.0f,0.0f,0.0f };
+XMVECTOR g_Down = { 0.0f,-1.0f,0.0f,0.0f };
+XMVECTOR camTarget;
+ID3D11VertexShader* Instance_VS = nullptr;
 
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
@@ -387,10 +393,6 @@ HRESULT InitDevice()
 
 	g_DevContext->OMSetRenderTargets(1, &g_rtv, g_depthStencilView);
 
-	//resize window by creating rezie buffer
-	/*g_rtv->Release();
-	hr = g_SwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);*/
-
 	// Setup the viewport
 	D3D11_VIEWPORT vp;
 	vp.Width = (FLOAT)width;
@@ -400,6 +402,7 @@ HRESULT InitDevice()
 	vp.TopLeftX = 0;
 	vp.TopLeftY = 0;
 	g_DevContext->RSSetViewports(1, &vp);
+
 
 	// Compile the vertex shader
 	ID3DBlob* pVSBlob = nullptr;
@@ -476,24 +479,40 @@ HRESULT InitDevice()
 
 	hr = CompileShader(L"CubeMap_VS.hlsl", "main", "vs_4_0", &pVSBlob);
 	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &sphere_VS);
-	
+
 	hr = CompileShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &sphere_PS);
 	pPSBlob->Release();
 	pVSBlob->Release();
-	//CreateVertexShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", sphere_VS);
-	//CreatePixelShader(L"CubeMap_PS.hlsl", "main", "ps_4_0", sphere_PS);
+
+
+
+	pVSBlob = nullptr;
+
+	hr = CompileShader(L"Instance_VS.hlsl", "main", "vs_4_0", &pVSBlob);
+	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &Instance_VS);
+
+
+	pVSBlob->Release();
+
+
+	pPSBlob = nullptr;
+	pVSBlob = nullptr;
+
+	hr = CompileShader(L"WaveShader_VS.hlsl", "main", "vs_4_0", &pVSBlob);
+	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_Wave_VS);
 
 	pPSBlob = nullptr;
 	hr = CompileShader(L"Reflection_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Reflection_PS);
 	pPSBlob->Release();
 
-	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx",scale), L"Axe Asset\\axeTexture.dds"));
-	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
-	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx",scale), L"Solid Object Assets\\stone_texture.dds"));
-	models.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx",scale), L"SkyboxOcean.dds"));
-	lineModels.push_back(loadObj.CreateModelBuffer(g_Device,loadObj.MakeGrid(15, 15), nullptr));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx", scale), L"Axe Asset\\axeTexture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"SkyboxOcean.dds"));
+	//models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5),  L"Solid Object Assets\\stone_texture.dds"));
+	lineModels.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
 	models[0]->transform.pos = XMVectorSet(-2.0f, 0.0f, 0.0f, 1.0f);
@@ -505,16 +524,21 @@ HRESULT InitDevice()
 	models[3]->transform.scale = XMVectorSet(1.5f, 1.5f, 1.5f, 1.0f);
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
-	lineModels[0]->vs = g_VS;
+	lineModels[0]->vs = g_Wave_VS;
 	lineModels[0]->ps = g_PS_Solid;
 
 	for (int i = 0; i < models.size(); i++)
 	{
 		switch (i)
 		{
+
 		case 3:
 			models[i]->vs = g_VS;
 			models[i]->ps = g_Reflection_PS;
+			break;
+		case 0:
+			models[i]->vs = Instance_VS;
+			models[i]->ps = g_PS;
 			break;
 		default:
 			models[i]->vs = g_VS;
@@ -523,7 +547,7 @@ HRESULT InitDevice()
 		}
 	}
 
-	skybox = loadObj.CreateModelBuffer(g_Device,loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"SkyboxOcean.dds");
+	skybox = loadObj.CreateModelBuffer(g_Device, loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"SkyboxOcean.dds");
 	skybox->vs = sphere_VS;
 	skybox->ps = sphere_PS;
 	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f, 1.0f);
@@ -553,6 +577,19 @@ HRESULT InitDevice()
 	hr = g_Device->CreateBuffer(&bd, nullptr, &g_cbPFbuffer);
 	if (FAILED(hr))
 		return hr;
+
+
+	ZeroMemory(&bd, sizeof(D3D11_BUFFER_DESC));
+	bd.Usage = D3D11_USAGE_DEFAULT;
+	bd.ByteWidth = sizeof(InstanceObject);
+	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bd.CPUAccessFlags = 0;
+	bd.MiscFlags = 0;
+
+	hr = g_Device->CreateBuffer(&bd, nullptr, &g_InstanceBuffer);
+	if (FAILED(hr))
+		return hr;
+
 	//cube map
 
 	//create sample state
@@ -595,6 +632,17 @@ HRESULT InitDevice()
 	// Initialize the projection matrix
 	camera.projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, width / (FLOAT)height, 0.01f, 100.0f);
 
+	Dirlight.transform.rotation = XMQuaternionRotationRollPitchYaw(1.0f, 1.5f, 0.0f);
+	StLight.transform.rotation = XMQuaternionRotationRollPitchYaw(1.0f, 1.5f, 0.0f);
+#ifdef _DEBUG
+	ID3D11Debug* DebugDevice = nullptr;
+	HRESULT Result = g_Device->QueryInterface(__uuidof(ID3D11Debug), reinterpret_cast<void**>(&DebugDevice));
+	//Result = DebugDevice->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+
+	DebugDevice->Release();
+#endif
+
+
 	return S_OK;
 }
 HRESULT InitInput(HINSTANCE hInstance)
@@ -622,14 +670,14 @@ HRESULT InitInput(HINSTANCE hInstance)
 		return hr;
 	return hr;
 }
-void CreateVertexShader( LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs)
+void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs)
 {
 	ID3DBlob* VSBlob = nullptr;
 	//UINT numElements = ARRAYSIZE(layout1);
 	/*hr = g_Device->CreateInputLayout(layout1, numElements, VSBlob->GetBufferPointer(),
 		VSBlob->GetBufferSize(), &g_vertLayout);
 	VSBlob->Release();*/
-	
+
 
 	// Set the input layout
 	g_DevContext->IASetInputLayout(g_vertLayout);
@@ -675,14 +723,27 @@ void CreatePixelShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D1
 
 float Cam_x = 0.0f;
 float Cam_y = 0.0f;
+
 void UpdateCamera()
 {
+
+
 	camera.transform.pos += xValue * camera.transform.Right();
 	camera.transform.pos += zValue * camera.transform.Forward();
+	float up_angle = XMVectorGetX(XMVector3AngleBetweenVectors(g_Up, camera.transform.Forward()));
+	float down_angle = XMVectorGetX(XMVector3AngleBetweenVectors(g_Down, camera.transform.Forward()));
+	up_angle = XMConvertToDegrees(up_angle);
+	down_angle = XMConvertToDegrees(down_angle);
 
+	if (up_angle < 20.0f)
+		Cam_y = MathLib::Clamp(0, abs(Cam_y), Cam_y);
+	if (down_angle < 20.0f)
+		Cam_y = MathLib::Clamp(-abs(Cam_y), 0, Cam_y);
 	XMVECTOR pitch = XMQuaternionRotationAxis(camera.transform.Right(), Cam_y);
-	XMVECTOR yaw = XMQuaternionRotationAxis(XMVectorSet(0.f, 1.f, 0.f, 0.f), Cam_x);;
+	XMVECTOR yaw = XMQuaternionRotationAxis(XMVectorSet(0.f, 1.f, 0.f, 0.f), Cam_x);
+
 	camera.transform.rotation = XMQuaternionMultiply(camera.transform.rotation, XMQuaternionMultiply(pitch, yaw));
+
 	Cam_x = 0.0f;
 	Cam_y = 0.0f;
 }
@@ -730,78 +791,6 @@ void GetKey(double time)
 		g_MouseState = Curr_MouseState;
 	}
 }
-
-
-
-bool LoadHeightMap(char* filename, HeightMap &heightmap)
-{
-	FILE *filePtr;                            // Point to the current position in the file
-	BITMAPFILEHEADER bitmapFileHeader;        // Structure which stores information about file
-	BITMAPINFOHEADER bitmapInfoHeader;        // Structure which stores information about image
-	int imageSize, index;
-	unsigned char height;
-
-	filePtr = fopen(filename, "");
-	if (filePtr == nullptr)
-		return 0;
-	//read file header
-	fread(&bitmapFileHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
-	//read info header
-	fread(&bitmapInfoHeader, sizeof(BITMAPINFOHEADER), 1, filePtr);
-
-	heightmap.width = bitmapInfoHeader.biWidth;
-	heightmap.height = bitmapInfoHeader.biHeight;
-
-	// Size of the image in bytes. the 3 represents RBG (byte, byte, byte) for each pixel
-	imageSize = heightmap.width * heightmap.height * 3;
-
-	// Initialize the array which stores the image data
-	unsigned char* bitmapImage = new unsigned char[imageSize];
-
-	// Set the file pointer to the beginning of the image data
-	fseek(filePtr, bitmapFileHeader.bfOffBits, SEEK_SET);
-
-	// Store image data in bitmapImage
-	fread(bitmapImage, 1, imageSize, filePtr);
-
-	// Close file
-	fclose(filePtr);
-
-	// Initialize the heightMap array (stores the vertices of our terrain)
-	heightmap.heightMap = new XMFLOAT3[heightmap.width * heightmap.height];
-
-	// We use a greyscale image, so all 3 rgb values are the same, but we only need one for the height
-	// So we use this counter to skip the next two components in the image data (we read R, then skip BG)
-	int k = 0;
-
-	// We divide the height by this number to "water down" the terrains height, otherwise the terrain will
-	// appear to be "spikey" and not so smooth.
-	float heightFactor = 10.0f;
-
-	// Read the image data into our heightMap array
-	for (int j = 0; j < heightmap.height; j++)
-	{
-		for (int i = 0; i < heightmap.width; i++)
-		{
-			height = bitmapImage[k];
-
-			index = (heightmap.height * j) + i;
-
-			heightmap.heightMap[index].x = (float)i;
-			heightmap.heightMap[index].y = (float)height / heightFactor;
-			heightmap.heightMap[index].z = (float)j;
-
-			k += 3;
-		}
-	}
-
-	delete[] bitmapImage;
-	bitmapImage = 0;
-
-	return true;
-
-}
-
 
 void CleanUp()
 {
@@ -874,6 +863,12 @@ void CleanUp()
 		if (skybox->srv)skybox->srv->Release();
 		delete skybox;
 	}
+
+	if (g_Wave_VS)g_Wave_VS->Release();
+	if (g_SwapChain_2nd)g_SwapChain_2nd->Release();
+	if (Instance_VS)Instance_VS->Release();
+
+	if (g_InstanceBuffer) g_InstanceBuffer->Release();
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -906,14 +901,17 @@ void Render()
 {
 	// Update our time
 
+
+
 	timer.Signal();
 
 	GetKey(timer.Delta());
 
-
+	camTarget = models[0]->transform.pos;
 	//camera imformation
 	UpdateCamera();
 	camera.projection = XMMatrixPerspectiveFovLH(0.4f*3.14f, (float)s_width / s_height, 1.0f, 1000.0f);
+	//camera.projection = XMMatrixLookAtLH(camera.transform.pos, camTarget, g_Up);
 
 	// Rotate the axe around the origin
 	{
@@ -928,44 +926,108 @@ void Render()
 
 	// Update matrix variables and lighting variables
 	//directional light
-	Dirlight.dir = XMFLOAT3(0.25f, -0.5f, 1.0f);
-	Dirlight.ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
-	Dirlight.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	XMVECTOR rot = XMQuaternionRotationRollPitchYaw(0.0f, 1.0f*timer.Delta(), 0.0f);
+	Dirlight.transform.rotation = XMQuaternionMultiply(Dirlight.transform.rotation, rot);
 
+	XMStoreFloat3(&Dirlight.DirLight.dir, Dirlight.transform.Forward());
+	Dirlight.DirLight.ambient = XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+	Dirlight.DirLight.diffuse = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
 
 	//Point Light
-	Ptlight.range = 6.0f;
-	Ptlight.diffuse = XMFLOAT4(0.0f, 4.0f, 0.0f, 1.0f);
 
-	//update pointlight position
-	//-9.0f, 1.0f, 5.0f, 0.0f
-	XMVECTOR LightVec = XMVectorSet(-7.0f, 1.0f, 8.0f, 0.0f);
-	XMStoreFloat3(&Ptlight.pos, LightVec);
+	Ptlight.transform.pos = XMVectorSet(-7.0f, 1.0f + sin(timer.TotalTime()), 8.0f, 1.0f);
+	XMStoreFloat3(&Ptlight.PtLight.pos, Ptlight.transform.pos);
+	Ptlight.PtLight.range = 6.0f;
+	Ptlight.PtLight.diffuse = XMFLOAT4(0.0f, 4.0f, 0.0f, 1.0f);
+
 
 
 	//Spot Light 
-	StLight.pos = XMFLOAT3(3.0f, 3.0f, 0.0f);
-	StLight.dir = XMFLOAT3(-3.0f, -3.0f, 0.0f);
-	StLight.range = 20.0f;
-	StLight.InConeRatio = XMConvertToRadians(10.0f);
-	StLight.OutConeRatio = XMConvertToRadians(30.0f);
+	StLight.transform.pos = XMVectorSet(3.0f + sin(timer.TotalTime() * 3), 3.0f, 3.0f, 1.0f);
+	XMStoreFloat3(&StLight.StLight.pos, StLight.transform.pos);
+	//StLight.StLight.dir = XMFLOAT3(-3.0f, -3.0f, 0.0f);
+	XMVECTOR StLightRot = XMQuaternionRotationRollPitchYaw(0.0f, -1.0f*timer.Delta(), 0.0f);
+	StLight.transform.rotation = XMQuaternionMultiply(StLight.transform.rotation, StLightRot);
 
-	StLight.diffuse = XMFLOAT4(3.0f, 0.0f, 0.0f, 1.0f);
+	XMStoreFloat3(&StLight.StLight.dir, StLight.transform.Forward());
+
+	StLight.StLight.range = 20.0f;
+	StLight.StLight.InConeRatio = XMConvertToRadians(10.0f);
+	StLight.StLight.OutConeRatio = XMConvertToRadians(30.0f);
+
+	StLight.StLight.diffuse = XMFLOAT4(3.0f, 0.0f, 0.0f, 1.0f);
 
 
-	constBufferPF.directLight = Dirlight;
-	constBufferPF.ptLight = Ptlight;
-	constBufferPF.stLight = StLight;
+	constBufferPF.directLight = Dirlight.DirLight;
+	constBufferPF.ptLight = Ptlight.PtLight;
+	constBufferPF.stLight = StLight.StLight;
 	constBufferPF.time = timer.TotalTime();
 	g_DevContext->UpdateSubresource(g_cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
 	XMFLOAT4 setColor;
 
 	CBufferPerObject cb1;
 	setColor = XMFLOAT4(0, 0, 0, 0);
+
+	UINT InstanceCount = 4;
+	InstanceObject InstanceObj;
 	for (int i = 0; i < models.size(); i++)
 	{
+		switch (i)
+		{
+		case 0:
+		{
+			UINT stride = sizeof(Vertex);
+			UINT offset = 0;
+			
 
-		loadObj.RenderObject(g_DevContext,camera,constBufferPF,g_SamplerState,models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+
+			g_DevContext->IASetIndexBuffer(models[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
+			g_DevContext->IASetVertexBuffers(0, 1, &models[i]->VertBuffer, &stride, &offset);
+
+			g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			srand(time(0));
+			float randX;
+			float randZ;
+			for (int j = 0; j < 4; j++)
+			{
+				 randX = rand()%10;
+				 randZ = rand()%10;
+				XMVECTOR tempPos;
+				tempPos = XMVectorSet(randX, 0.0f, randZ, 0.0f);
+
+				models[i]->transform.pos = tempPos;
+
+				InstanceObj.mWorld[j] = XMMatrixTranspose(models[i]->transform.createMatrix());
+			}
+			InstanceObj.mView = XMMatrixTranspose(camera.View());
+			InstanceObj.mProjection = XMMatrixTranspose(camera.projection);
+
+			XMStoreFloat4(&constBufferPF.CameraPos, camera.transform.pos);
+
+			g_DevContext->UpdateSubresource(g_InstanceBuffer, 0, nullptr, &InstanceObj, 0, 0);
+			g_DevContext->UpdateSubresource(g_cbPFbuffer, 0, nullptr, &constBufferPF, 0, 0);
+
+			g_DevContext->VSSetShader(models[i]->vs, nullptr, 0);
+			g_DevContext->PSSetShader(models[i]->ps, nullptr, 0);
+			g_DevContext->VSSetConstantBuffers(0, 1, &g_InstanceBuffer);
+			g_DevContext->PSSetConstantBuffers(0, 1, &g_cbPerObjBuffer);
+			g_DevContext->VSSetConstantBuffers(1, 1, &g_cbPFbuffer);
+			g_DevContext->PSSetConstantBuffers(1, 1, &g_cbPFbuffer);
+
+			g_DevContext->PSSetSamplers(0, 1, &g_SamplerState);
+			g_DevContext->PSSetShaderResources(0, 1, &models[i]->srv);
+
+			g_DevContext->RSSetState(RSCullNone);
+			g_DevContext->DrawIndexedInstanced(models[i]->indexCount, InstanceCount, 0, 0, 0);
+			break;
+		}
+
+
+		default:
+			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+			break;
+		}
+
 	}
 
 
@@ -980,6 +1042,8 @@ void Render()
 	g_DevContext->RSSetState(RSCullNone);
 	loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 
+
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);
+
 }

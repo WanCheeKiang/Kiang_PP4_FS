@@ -87,11 +87,11 @@ struct Transform
 		return direction;
 	}
 };
-struct DirectionalLight
+struct DirectionalLightGPU
 {
-	DirectionalLight()
+	DirectionalLightGPU()
 	{
-		ZeroMemory(this, sizeof(DirectionalLight));
+		ZeroMemory(this, sizeof(DirectionalLightGPU));
 	}
 	XMFLOAT4 ambient;//周圍環境條件 
 	XMFLOAT4 diffuse;//漫射 
@@ -100,11 +100,11 @@ struct DirectionalLight
 	XMFLOAT3 dir;
 	float align;
 };
-struct PointLight
+struct PointLightGPU
 {
-	PointLight()
+	PointLightGPU()
 	{
-		ZeroMemory(this, sizeof(PointLight));
+		ZeroMemory(this, sizeof(PointLightGPU));
 	}
 	XMFLOAT4 diffuse;//漫射 
 	XMFLOAT3 dir;
@@ -113,11 +113,11 @@ struct PointLight
 	float align;
 };
 
-struct SpotLight
+struct SpotLightGPU
 {
-	SpotLight()
+	SpotLightGPU()
 	{
-		ZeroMemory(this, sizeof(SpotLight));
+		ZeroMemory(this, sizeof(SpotLightGPU));
 	}
 	XMFLOAT4 diffuse;//漫射 
 	XMFLOAT3 dir;
@@ -130,9 +130,9 @@ struct SpotLight
 
 struct cbPerFrame
 {
-	DirectionalLight directLight;
-	PointLight ptLight;
-	SpotLight stLight;
+	DirectionalLightGPU directLight;
+	PointLightGPU ptLight;
+	SpotLightGPU stLight;
 	float time;
 	XMFLOAT3 align;
 	XMFLOAT4 CameraPos;
@@ -148,6 +148,13 @@ struct CBufferPerObject
 	
 };
 
+struct InstanceObject
+{
+	XMMATRIX mWorld[4];
+	XMMATRIX mView;
+	XMMATRIX mProjection;
+	XMMATRIX space;
+};
 
 
 struct ModelBuffer
@@ -209,6 +216,34 @@ struct Camera
 	{
 		return XMMatrixInverse(nullptr, transform.createMatrix());
 	}
+};
+
+struct Instance
+{
+	XMVECTOR pos;
+};
+
+struct InstanceObj
+{
+	int VertCount;
+	int InstanceCount;
+
+};
+struct DirectionalLight
+{
+	Transform transform;
+	DirectionalLightGPU DirLight;
+};
+
+struct PointLight
+{
+	Transform transform;
+	PointLightGPU PtLight;
+};
+struct SpotLight
+{
+	Transform transform;
+	SpotLightGPU StLight;
 };
 
 #define s_width 500

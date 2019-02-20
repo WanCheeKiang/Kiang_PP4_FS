@@ -10,12 +10,6 @@ cbuffer cbPerFrame :register(b1)
     float4 CameraPos;
 };
 
-//cbuffer cbPerObject
-//{
-//	float4x4 WVP;
-//	float4x4 World;
-//};
-
 cbuffer ConstantBuffer : register(b0)
 {
 	matrix mWorld;
@@ -52,7 +46,7 @@ VS_OUTPUT main(VS_INPUT input)
 	output.Pos = mul(output.Pos, mView);
 	output.Pos = mul(output.Pos, mProjection);
 	output.Normal = mul(float4(input.Normal,0), (mWorld)).xyz;
-	output.TexCoord = input.TexCoord;
+    output.TexCoord = input.TexCoord;
 
 	return output;
 }

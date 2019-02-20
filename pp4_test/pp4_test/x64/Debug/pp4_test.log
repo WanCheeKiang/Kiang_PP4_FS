@@ -1,36 +1,14 @@
-﻿  LoadObject.cpp
+﻿  main.cpp
   c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\dinput.h: DIRECTINPUT_VERSION undefined. Defaulting to version 0x0800
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(29): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(31): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(33): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(35): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(54): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(67): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(69): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(93): warning C4018: '<': signed/unsigned mismatch
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(95): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
-          with
-          [
-              _Ty=int
-          ]
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(101): warning C4267: '=': conversion from 'size_t' to '_Ty', possible loss of data
-          with
-          [
-              _Ty=int
-          ]
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(118): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(119): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(380): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(390): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(431): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(432): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(437): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\loadobject.cpp(448): warning C4267: '=': conversion from 'size_t' to 'UINT', possible loss of data
-  main.cpp
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\dinput.h: DIRECTINPUT_VERSION undefined. Defaulting to version 0x0800
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(711): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(920): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(959): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(963): warning C4101: 'cb1': unreferenced local variable
-  Generating Code...
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(772): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(918): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(929): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(938): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(946): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(949): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(964): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(988): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(993): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(994): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\kiang wan chee\documents\pp4\pp4_test\pp4_test\main.cpp(968): warning C4101: 'cb1': unreferenced local variable
   pp4_test.vcxproj -> C:\Users\Kiang Wan Chee\Documents\PP4\pp4_test\x64\Debug\pp4_test.exe

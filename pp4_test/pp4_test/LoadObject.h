@@ -14,6 +14,8 @@ public:
 	ModelImport ImportFbxModel(const char* FileName,float scale);
 	ModelBuffer* CreateModelBuffer(ID3D11Device* device, ModelImport model, const wchar_t* TextureName = nullptr);
 	ModelImport LoadObjBuffer(int numIndices, int numVertices, const OBJ_VERT* verts, const unsigned int* indices);
+	void MultiTexture(const wchar_t* TextureName1, const wchar_t* TextureName2, ID3D11Device* device);
 	void RenderObject(ID3D11DeviceContext* DevContext, Camera camera, cbPerFrame constBufferPF, ID3D11SamplerState* SamplerState, ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
+	void InstanceRender(ID3D11DeviceContext* DevContext, ID3D11InputLayout* inputlayout, int vertexCount, int instancesCount, ID3D11PixelShader* ps, ID3D11VertexShader*vs, ID3D11SamplerState* SamplerState);
 };
 
