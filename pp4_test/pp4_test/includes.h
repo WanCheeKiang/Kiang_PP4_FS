@@ -218,17 +218,23 @@ struct Camera
 	}
 };
 
-struct Instance
-{
-	XMVECTOR pos;
-};
-
 struct InstanceObj
 {
 	int VertCount;
 	int InstanceCount;
 
 };
+
+struct TextureRender
+{
+	ID3D11RenderTargetView* rtt = nullptr;
+	ID3D11DepthStencilView* dsv = nullptr;
+	ID3D11ShaderResourceView* srv = nullptr;
+	ID3D11Texture2D* DSBuffer = nullptr;
+	ID3D11Buffer* vertBuffer = nullptr;
+	ID3D11Buffer* Indexbuffer = nullptr;
+};
+//Lights
 struct DirectionalLight
 {
 	Transform transform;

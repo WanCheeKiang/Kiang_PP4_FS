@@ -156,6 +156,7 @@
     <ClCompile Include="LoadObject.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="MathLib.cpp" />
+    <ClCompile Include="Rendertexture.cpp" />
     <ClCompile Include="XTime.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -164,6 +165,7 @@
     <ClInclude Include="includes.h" />
     <ClInclude Include="LoadObject.h" />
     <ClInclude Include="MathLib.h" />
+    <ClInclude Include="Rendertexture.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="ShaderIncludes.hlsl">
       <FileType>Document</FileType>

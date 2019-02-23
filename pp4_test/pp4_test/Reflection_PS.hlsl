@@ -26,6 +26,7 @@ struct PS_INPUT
     float2 TexCoord : TEXCOORD;
     float3 WorldPos : WORLDPOS;
 };
+
 TextureCube CubeMap : register(t0);
 SamplerState ObjSamplerState : register(s0);
 
@@ -33,6 +34,8 @@ SamplerState ObjSamplerState : register(s0);
 
 float4 main(PS_INPUT input) : SV_TARGET
 {
+    //remeber to normalize the input normal, since it might unnormalize when it get through the shader
+    input.Normal = normalize(input.Normal);
     float3 cam_dir = normalize(CameraPos.xyz - input.WorldPos);
     float3 reflectVec = reflect(-cam_dir,input.Normal);
 

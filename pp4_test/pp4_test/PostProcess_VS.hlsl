@@ -1,36 +1,15 @@
-cbuffer ConstantBuffer : register(b0)
-{
-    matrix mWorld;
-    matrix mView;
-    matrix mProjection;
-    float4 outputColor;
-  
-
-};
-
-struct VS_INPUT
-{
-    float4 Pos : POSITION;
-    float3 Normal : NORMAL;
-    float2 TexCoord : TEXCOORD;
-};
 
 struct VS_OUTPUT
 {
-    float4 Pos : POSITION;
-    float3 Normal : NORMAL;
+    float4 Pos : SV_POSITION;
     float2 TexCoord : TEXCOORD;
 };
 
-Texture2D ObjTexture : register(t0);
-SamplerState ObjSamplerState : register(s0);
-
-VS_OUTPUT main(VS_INPUT input)
+VS_OUTPUT main(uint vI : SV_VERTEXID)
 {
-    VS_OUTPUT output =(VS_OUTPUT)0;
-
-    output.Normal = mul(float4(input.Normal, 0), (mWorld)).xyz;
-    output.TexCoord = input.TexCoord;
-
+    VS_OUTPUT output = (VS_OUTPUT) 0;
+    output.TexCoord = float2(vI & 1, vI >> 1); //you can use these for texture coordinates later
+    output.Pos = float4((output.TexCoord.x - 0.5f) * 2, -(output.TexCoord.y - 0.5f) * 2, 0, 1);
     return output;
+
 }

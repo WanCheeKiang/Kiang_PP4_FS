@@ -17,5 +17,7 @@ public:
 	void MultiTexture(const wchar_t* TextureName1, const wchar_t* TextureName2, ID3D11Device* device);
 	void RenderObject(ID3D11DeviceContext* DevContext, Camera camera, cbPerFrame constBufferPF, ID3D11SamplerState* SamplerState, ModelBuffer* model, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, XMFLOAT4 outputColor);
 	void InstanceRender(ID3D11DeviceContext* DevContext, ID3D11InputLayout* inputlayout, int vertexCount, int instancesCount, ID3D11PixelShader* ps, ID3D11VertexShader*vs, ID3D11SamplerState* SamplerState);
+	void RenderTexture(ID3D11DeviceContext* DevContext, Camera camera, cbPerFrame constBufferPF, ID3D11SamplerState* SamplerState, ID3D11PixelShader* ps, ID3D11VertexShader*vs, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer, ID3D11Buffer* vertexBuffer, ID3D11Buffer* Indexbuffer);
+
 };
 

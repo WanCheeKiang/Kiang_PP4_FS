@@ -2,6 +2,7 @@
 #include"XTime.h"
 #include"LoadObject.h"
 #include"MathLib.h"
+#include"Rendertexture.h"
 //Global : Interface
 ID3D11Device* g_Device = nullptr;
 IDXGISwapChain* g_SwapChain = nullptr;
@@ -17,6 +18,10 @@ ID3D11VertexShader* g_Wave_VS = nullptr;
 ID3D11PixelShader* g_PS = nullptr;
 ID3D11PixelShader*  g_PS_Solid = nullptr;
 ID3D11PixelShader* g_Reflection_PS = nullptr;
+ID3D11VertexShader* g_PostProcess_VS = nullptr;
+ID3D11PixelShader* g_PostProcess_PS = nullptr;
+ID3D11PixelShader* g_NoEffect_PS = nullptr;
+
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -57,6 +62,8 @@ float xValue = 0.0f; //value for move right && left
 float zValue = 0.0f; //value for move back && forward
 
 LoadObject loadObj;
+Rendertexture renTex;
+Rendertexture renToTex;
 //get input
 DIMOUSESTATE g_MouseState;
 IDirectInputDevice8* DIKeyboard;
@@ -69,7 +76,7 @@ HRESULT InitDevice();
 HRESULT InitInput(HINSTANCE hInstance);
 void UpdateCamera();
 void GetKey(double time);
-void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs);
+void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs, ID3D11InputLayout* inputLayout, D3D11_INPUT_ELEMENT_DESC layout);
 void CreatePixelShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11PixelShader* vs);
 void Render();
 void CleanUp();
@@ -95,7 +102,13 @@ RotationMatrixs g_RotationMatrix;
 XMVECTOR g_Up = { 0.0f,1.0f,0.0f,0.0f };
 XMVECTOR g_Down = { 0.0f,-1.0f,0.0f,0.0f };
 XMVECTOR camTarget;
+//Draw Instance set up
 ID3D11VertexShader* Instance_VS = nullptr;
+//post process set up
+ID3D11ShaderResourceView* g_srv = nullptr;
+ID3D11Texture2D* g_DSBuffer = nullptr;
+
+TextureRender TextureInfo;
 
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
@@ -352,16 +365,29 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 		return hr;
 
+	//create shaderresourse view
+
 	// Create a render target view
 	ID3D11Texture2D* pBackBuffer = nullptr;
 	hr = g_SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&pBackBuffer));
 	if (FAILED(hr))
 		return hr;
 
+	D3D11_TEXTURE2D_DESC textureDesc = {};
+	ZeroMemory(&textureDesc, sizeof(D3D11_TEXTURE2D_DESC));
+	pBackBuffer->GetDesc(&textureDesc);
+	textureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+
 	hr = g_Device->CreateRenderTargetView(pBackBuffer, nullptr, &g_rtv);
+
+	renTex.CreateRenderTexture(g_Device, &textureDesc, nullptr);
+	renToTex.CreateRenderTexture(g_Device, &textureDesc, nullptr);
+
 	pBackBuffer->Release();
 	if (FAILED(hr))
 		return hr;
+
 
 	// Create depth stencil texture
 	D3D11_TEXTURE2D_DESC descDepth = {};
@@ -391,7 +417,19 @@ HRESULT InitDevice()
 	if (FAILED(hr))
 		return hr;
 
-	g_DevContext->OMSetRenderTargets(1, &g_rtv, g_depthStencilView);
+	D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	ZeroMemory(&dsvDesc, sizeof(D3D11_DEPTH_STENCIL_VIEW_DESC));
+	descDSV.Format = descDepth.Format;
+	descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	descDSV.Texture2D.MipSlice = 0;
+
+	ID3D11Texture2D* BackBuffer = nullptr;
+	hr = g_SwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&BackBuffer));
+
+
+	if (FAILED(hr))
+		return hr;
+
 
 	// Setup the viewport
 	D3D11_VIEWPORT vp;
@@ -496,22 +534,35 @@ HRESULT InitDevice()
 	pVSBlob->Release();
 
 
-	pPSBlob = nullptr;
-	pVSBlob = nullptr;
 
+	pVSBlob = nullptr;
 	hr = CompileShader(L"WaveShader_VS.hlsl", "main", "vs_4_0", &pVSBlob);
 	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_Wave_VS);
-
+	pVSBlob->Release();
 	pPSBlob = nullptr;
 	hr = CompileShader(L"Reflection_PS.hlsl", "main", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Reflection_PS);
 	pPSBlob->Release();
+	// post process
+	pVSBlob = nullptr;
+	hr = CompileShader(L"PostProcess_VS.hlsl", "main", "vs_4_0", &pVSBlob);
+	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_PostProcess_VS);
+	pVSBlob->Release();
+	pPSBlob = nullptr;
+	hr = CompileShader(L"PostProcess_PS.hlsl", "main", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_PostProcess_PS);
+	pPSBlob->Release();
+	pPSBlob = nullptr;
+	hr = CompileShader(L"PostProcess_PS.hlsl", "NoEffect", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_NoEffect_PS);
+	pPSBlob->Release();
+
 
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx", scale), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"SkyboxOcean.dds"));
-	//models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5),  L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
 	lineModels.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -522,6 +573,7 @@ HRESULT InitDevice()
 	models[2]->transform.rotation = XMVectorSet(0.0f, 1.5f, 0.0f, 1.0f);
 	models[3]->transform.pos = XMVectorSet(0.0f, 4.0f, 2.0f, 1.0f);
 	models[3]->transform.scale = XMVectorSet(1.5f, 1.5f, 1.5f, 1.0f);
+	models[4]->transform.pos = XMVectorSet(-8.0f, 1.0f, 0.0f, 1.0f);
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
 	lineModels[0]->vs = g_Wave_VS;
@@ -540,6 +592,12 @@ HRESULT InitDevice()
 			models[i]->vs = Instance_VS;
 			models[i]->ps = g_PS;
 			break;
+
+		case 4:
+			models[i]->vs = g_PostProcess_VS;
+			models[i]->ps = g_PS;
+			models[i]->srv = renToTex.srv;
+			renToTex.srv = nullptr;
 		default:
 			models[i]->vs = g_VS;
 			models[i]->ps = g_PS;
@@ -622,6 +680,7 @@ HRESULT InitDevice()
 	hr = g_Device->CreateDepthStencilState(&dssDesc, &DSLessEqual);
 	if (FAILED(hr))
 		return hr;
+
 	// Initialize the world matrices
 	World = XMMatrixIdentity();
 
@@ -670,17 +729,16 @@ HRESULT InitInput(HINSTANCE hInstance)
 		return hr;
 	return hr;
 }
-void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs)
+void CreateVertexShader(LPCWSTR srcFile, LPCSTR entryPoint, LPCSTR profile, ID3D11VertexShader* vs, ID3D11InputLayout* inputLayout, D3D11_INPUT_ELEMENT_DESC layout)
 {
 	ID3DBlob* VSBlob = nullptr;
-	//UINT numElements = ARRAYSIZE(layout1);
-	/*hr = g_Device->CreateInputLayout(layout1, numElements, VSBlob->GetBufferPointer(),
-		VSBlob->GetBufferSize(), &g_vertLayout);
+	/*UINT numElements = ARRAYSIZE(layout);
+	hr = g_Device->CreateInputLayout(layout, numElements, VSBlob->GetBufferPointer(),
+		VSBlob->GetBufferSize(), &inputLayout);
 	VSBlob->Release();*/
 
-
 	// Set the input layout
-	g_DevContext->IASetInputLayout(g_vertLayout);
+	g_DevContext->IASetInputLayout(inputLayout);
 	//vertex shader
 	VSBlob = nullptr;
 	hr = CompileShader(srcFile, entryPoint, profile, &VSBlob);
@@ -869,6 +927,16 @@ void CleanUp()
 	if (Instance_VS)Instance_VS->Release();
 
 	if (g_InstanceBuffer) g_InstanceBuffer->Release();
+
+
+	if (g_srv)g_srv->Release();
+	if (g_DSBuffer)g_DSBuffer->Release();
+	if (g_PostProcess_VS)g_PostProcess_VS->Release();
+	if (g_PostProcess_PS)g_PostProcess_PS->Release();
+	renTex.TextureCleanUp();
+	renToTex.TextureCleanUp();
+	if (g_NoEffect_PS)g_NoEffect_PS->Release();
+
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -901,6 +969,8 @@ void Render()
 {
 	// Update our time
 
+	BYTE keyinput[256];
+	DIKeyboard->GetDeviceState(sizeof(keyinput), (LPVOID)&keyinput);
 
 
 	timer.Signal();
@@ -918,10 +988,10 @@ void Render()
 		XMVECTOR rot = XMQuaternionRotationRollPitchYaw(0.0f, 1.0f*timer.Delta(), 0.0f);
 		models[0]->transform.rotation = XMQuaternionMultiply(models[0]->transform.rotation, rot);
 	}
-	// Clear the back buffer
-	g_DevContext->ClearRenderTargetView(g_rtv, Colors::MidnightBlue);
 
-	// Clear the depth buffer to 1.0 (max depth)
+	// for the post processing rendering 
+	g_DevContext->ClearRenderTargetView(renTex.rtv, Colors::Green);
+
 	g_DevContext->ClearDepthStencilView(g_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	// Update matrix variables and lighting variables
@@ -968,6 +1038,8 @@ void Render()
 	CBufferPerObject cb1;
 	setColor = XMFLOAT4(0, 0, 0, 0);
 
+	g_DevContext->OMSetRenderTargets(1, &renTex.rtv, g_depthStencilView);
+
 	UINT InstanceCount = 4;
 	InstanceObject InstanceObj;
 	for (int i = 0; i < models.size(); i++)
@@ -978,8 +1050,6 @@ void Render()
 		{
 			UINT stride = sizeof(Vertex);
 			UINT offset = 0;
-			
-
 
 			g_DevContext->IASetIndexBuffer(models[i]->IndexBuffer, DXGI_FORMAT_R32_UINT, offset);
 			g_DevContext->IASetVertexBuffers(0, 1, &models[i]->VertBuffer, &stride, &offset);
@@ -990,8 +1060,8 @@ void Render()
 			float randZ;
 			for (int j = 0; j < 4; j++)
 			{
-				 randX = rand()%10;
-				 randZ = rand()%10;
+				randX = rand() % 10;
+				randZ = rand() % 10;
 				XMVECTOR tempPos;
 				tempPos = XMVectorSet(randX, 0.0f, randZ, 0.0f);
 
@@ -1022,7 +1092,6 @@ void Render()
 			break;
 		}
 
-
 		default:
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 			break;
@@ -1043,6 +1112,25 @@ void Render()
 	loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 
 
+	g_DevContext->CopyResource(renToTex.Texture2D, renTex.Texture2D);
+
+	// Clear the back buffer
+	g_DevContext->ClearRenderTargetView(g_rtv, Colors::MidnightBlue);
+	// draw call
+	g_DevContext->OMSetRenderTargets(1, &g_rtv, nullptr);
+	g_DevContext->VSSetShader(g_PostProcess_VS, 0, 0);
+	if (GetAsyncKeyState('1'))
+	{
+		g_DevContext->PSSetShader(g_PostProcess_PS, 0, 0);
+	}
+	else
+		g_DevContext->PSSetShader(g_NoEffect_PS, 0, 0);
+	g_DevContext->PSSetShaderResources(0, 1, &renTex.srv);
+
+	g_DevContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	g_DevContext->Draw(4, 0);
+	ID3D11ShaderResourceView* null[] = { nullptr };
+	g_DevContext->PSSetShaderResources(0, 1, null);
 	// Present our back buffer to our front buffer
 	g_SwapChain->Present(0, 0);
 

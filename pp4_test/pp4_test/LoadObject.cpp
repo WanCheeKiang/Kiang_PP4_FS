@@ -535,5 +535,24 @@ void LoadObject::MultiTexture(const wchar_t* TextureName1, const wchar_t* Textur
 		CreateDDSTextureFromFile(device, TextureName1, nullptr, &textures_srv[0]);
 	if (TextureName2 != nullptr)
 		CreateDDSTextureFromFile(device, TextureName2, nullptr, &textures_srv[1]);
+
+}
+
+void LoadObject::RenderTexture(ID3D11DeviceContext* DevContext, Camera camera, cbPerFrame constBufferPF, ID3D11SamplerState* SamplerState, ID3D11PixelShader* ps, ID3D11VertexShader*vs, D3D_PRIMITIVE_TOPOLOGY SetPrimitiveTopology, ID3D11Buffer* buffer, ID3D11Buffer* pfbuffer,ID3D11Buffer* vertexBuffer, ID3D11Buffer* Indexbuffer)
+{
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+	CBufferPerObject cb;
+	DevContext->IASetIndexBuffer(Indexbuffer, DXGI_FORMAT_R32_UINT, offset);
+	DevContext->IASetVertexBuffers(0, 1, &vertexBuffer, &stride, &offset);
+
+	DevContext->PSSetShader(ps,0,0);
+	DevContext->VSSetShader(vs, 0, 0);
+
+	DevContext->PSSetSamplers(0, 1, &SamplerState);
+	DevContext->IASetPrimitiveTopology(SetPrimitiveTopology);
+	DevContext->UpdateSubresource(buffer, 0, nullptr, &cb, 0, 0);
+	DevContext->UpdateSubresource(pfbuffer, 0, nullptr, &constBufferPF, 0, 0);
+	
 }
 
