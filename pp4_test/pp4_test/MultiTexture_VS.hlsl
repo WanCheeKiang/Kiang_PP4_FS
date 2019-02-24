@@ -8,7 +8,7 @@ cbuffer ConstantBuffer : register(b0)
 struct VS_INPUT
 {
     float4 Pos : POSITION;
-    float Normal : NORMAL;
+    float3 Normal : NORMAL;
     float2 TexCoord : TEXCOORD;
 };
 

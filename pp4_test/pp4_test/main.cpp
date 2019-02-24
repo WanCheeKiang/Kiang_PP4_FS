@@ -561,8 +561,8 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx", scale), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
-	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"SkyboxOcean.dds"));
-	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"testCubeMap.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
 	lineModels.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -605,7 +605,7 @@ HRESULT InitDevice()
 		}
 	}
 
-	skybox = loadObj.CreateModelBuffer(g_Device, loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"SkyboxOcean.dds");
+	skybox = loadObj.CreateModelBuffer(g_Device, loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"testCubeMap.dds");
 	skybox->vs = sphere_VS;
 	skybox->ps = sphere_PS;
 	XMVECTOR Scale = XMVectorSet(50.0f, 50.0f, 50.0f, 1.0f);

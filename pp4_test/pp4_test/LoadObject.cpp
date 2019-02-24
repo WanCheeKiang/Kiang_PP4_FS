@@ -528,13 +528,10 @@ void LoadObject::InstanceRender(ID3D11DeviceContext* DevContext,ID3D11InputLayou
 	DevContext->DrawInstanced(vertexCount, instancesCount, 0, 0);
 }
 
-void LoadObject::MultiTexture(const wchar_t* TextureName1, const wchar_t* TextureName2, ID3D11Device* device)
+void LoadObject::MultiTexture(const wchar_t* TextureName1, ID3D11Device* device)
 {
-	ID3D11ShaderResourceView* textures_srv[2];
-	if (TextureName1 != nullptr)
-		CreateDDSTextureFromFile(device, TextureName1, nullptr, &textures_srv[0]);
-	if (TextureName2 != nullptr)
-		CreateDDSTextureFromFile(device, TextureName2, nullptr, &textures_srv[1]);
+	if(TextureName1 != nullptr)
+		CreateDDSTextureFromFile(device, TextureName1, nullptr, &textures_srv);
 
 }
 

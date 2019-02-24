@@ -23,7 +23,7 @@ float4 main(PS_INPUT input):SV_Target
 
     color1 = ObjTexture1.Sample(ObjSamplerState, input.TexCoord);
     color2 = ObjTexture2.Sample(ObjSamplerState, input.TexCoord);
-    blendColor = color1 * color2 * 2.0f;
+    blendColor = color1 * color2;
 
     blendColor = saturate(blendColor);
 
