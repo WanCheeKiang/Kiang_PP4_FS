@@ -21,7 +21,8 @@ ID3D11PixelShader* g_Reflection_PS = nullptr;
 ID3D11VertexShader* g_PostProcess_VS = nullptr;
 ID3D11PixelShader* g_PostProcess_PS = nullptr;
 ID3D11PixelShader* g_NoEffect_PS = nullptr;
-
+ID3D11VertexShader* g_MultiTex_VS = nullptr;
+ID3D11PixelShader*  g_MultiTex_PS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -557,12 +558,24 @@ HRESULT InitDevice()
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_NoEffect_PS);
 	pPSBlob->Release();
 
+	pVSBlob = nullptr;
+	hr = CompileShader(L"MultiTexture_VS.hlsl", "main", "vs_4_0", &pVSBlob);
+	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_MultiTex_VS);
+	pVSBlob->Release();
+
+	pPSBlob = nullptr;
+	hr = CompileShader(L"MultiTexture_PS.hlsl", "main", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_MultiTex_PS);
+	pPSBlob->Release();
+	pPSBlob = nullptr;
+
 
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx", scale), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"testCubeMap.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5), L"Box_Red2Dark.dds"));
 	lineModels.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -594,13 +607,19 @@ HRESULT InitDevice()
 			break;
 
 		case 4:
-			models[i]->vs = g_PostProcess_VS;
+			models[i]->vs = g_VS;
 			models[i]->ps = g_PS;
 			models[i]->srv = renToTex.srv;
 			renToTex.srv = nullptr;
+			break;
+		case 5:
+			models[i]->vs = g_MultiTex_VS;
+			models[i]->ps = g_MultiTex_PS;
+			break;
 		default:
 			models[i]->vs = g_VS;
 			models[i]->ps = g_PS;
+			break;
 
 		}
 	}
@@ -936,7 +955,8 @@ void CleanUp()
 	renTex.TextureCleanUp();
 	renToTex.TextureCleanUp();
 	if (g_NoEffect_PS)g_NoEffect_PS->Release();
-
+	if (g_MultiTex_VS)g_MultiTex_VS->Release();
+	if (g_MultiTex_PS)g_MultiTex_PS->Release();
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -1091,7 +1111,10 @@ void Render()
 			g_DevContext->DrawIndexedInstanced(models[i]->indexCount, InstanceCount, 0, 0, 0);
 			break;
 		}
-
+		case 5:
+			loadObj.MultiTexture(L"cobblestone.dds", g_Device);
+			g_DevContext->PSSetShaderResources(1, 1, &loadObj.textures_srv);
+			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 		default:
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 			break;
