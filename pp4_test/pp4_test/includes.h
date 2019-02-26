@@ -27,7 +27,7 @@ using namespace DirectX;
 #define ChestData_vert 820
 #define ChestData_Ind 1812
 #include<dinput.h>
-
+#include<algorithm>
 #define _CRTDBG_MAP_ALLOC  
 #include <stdlib.h>  
 #include <crtdbg.h>  

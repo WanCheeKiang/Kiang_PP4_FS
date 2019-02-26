@@ -73,5 +73,6 @@
     <FxCompile Include="MultiTexture_PS.hlsl" />
     <FxCompile Include="PostProcess_VS.hlsl" />
     <FxCompile Include="PostProcess_PS.hlsl" />
+    <FxCompile Include="Transparent_PS.hlsl" />
   </ItemGroup>
 </Project>

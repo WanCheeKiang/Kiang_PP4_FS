@@ -23,6 +23,7 @@ ID3D11PixelShader* g_PostProcess_PS = nullptr;
 ID3D11PixelShader* g_NoEffect_PS = nullptr;
 ID3D11VertexShader* g_MultiTex_VS = nullptr;
 ID3D11PixelShader*  g_MultiTex_PS = nullptr;
+ID3D11PixelShader* g_Blend_PS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -93,6 +94,7 @@ cbPerFrame constBufferPF;
 ID3D11ShaderResourceView* obj_srv;
 vector<ModelBuffer*> models;
 vector<ModelBuffer*> lineModels;
+vector<ModelBuffer*>BlendObj;
 ModelBuffer* skybox;
 //cube map
 ID3D11VertexShader* sphere_VS = nullptr;
@@ -108,8 +110,13 @@ ID3D11VertexShader* Instance_VS = nullptr;
 //post process set up
 ID3D11ShaderResourceView* g_srv = nullptr;
 ID3D11Texture2D* g_DSBuffer = nullptr;
-
-TextureRender TextureInfo;
+//trensparent set up
+ID3D11RasterizerState* FrontCull = nullptr;
+ID3D11RasterizerState* BackCull = nullptr;
+ID3D11BlendState* g_BlendState_on = nullptr;
+ID3D11BlendState* g_BlendState_off = nullptr;
+ID3D11BlendState* g_BlendState_wf = nullptr;
+ID3D11DepthStencilState* g_DSS_Blend;
 
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
@@ -569,6 +576,11 @@ HRESULT InitDevice()
 	pPSBlob->Release();
 	pPSBlob = nullptr;
 
+	pPSBlob = nullptr;
+	hr = CompileShader(L"Transparent_PS.hlsl", "main", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Blend_PS);
+	pPSBlob->Release();
+	pPSBlob = nullptr;
 
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Axe Asset\\Axe_1.fbx", scale), L"Axe Asset\\axeTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
@@ -576,6 +588,10 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), L"testCubeMap.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cone.fbx", 0.5), L"Box_Red2Dark.dds"));
+	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
+	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
+	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
+
 	lineModels.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.MakeGrid(15, 15), nullptr));
 
 	models[0]->transform.scale = XMVectorSet(0.2f, 0.2f, 0.2f, 1.0f);
@@ -587,7 +603,13 @@ HRESULT InitDevice()
 	models[3]->transform.pos = XMVectorSet(0.0f, 4.0f, 2.0f, 1.0f);
 	models[3]->transform.scale = XMVectorSet(1.5f, 1.5f, 1.5f, 1.0f);
 	models[4]->transform.pos = XMVectorSet(-8.0f, 1.0f, 0.0f, 1.0f);
+	models[5]->transform.pos = XMVectorSet(-8.0f, 1.0f, -4.0f, 1.0f);
+	models[5]->transform.pos = XMVectorSet(-8.0f, 1.0f, -4.0f, 1.0f);
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
+
+	BlendObj[0]->transform.pos = XMVectorSet(-4.0f, 2.2f, 0.2f, 1.0f);
+	BlendObj[1]->transform.pos = XMVectorSet(-4.0f, 2.2f, 1.0f, 1.0f);
+	BlendObj[2]->transform.pos = XMVectorSet(-4.0f, 2.2f, 1.8f, 1.0f);
 
 	lineModels[0]->vs = g_Wave_VS;
 	lineModels[0]->ps = g_PS_Solid;
@@ -624,6 +646,11 @@ HRESULT InitDevice()
 		}
 	}
 
+	for (int i = 0; i < BlendObj.size(); i++)
+	{
+		BlendObj[i]->vs = g_VS;
+		BlendObj[i]->ps = g_Blend_PS;
+	}
 	skybox = loadObj.CreateModelBuffer(g_Device, loadObj.CreateSphere(g_RotationMatrix, 10, 10), L"testCubeMap.dds");
 	skybox->vs = sphere_VS;
 	skybox->ps = sphere_PS;
@@ -632,6 +659,32 @@ HRESULT InitDevice()
 
 	skybox->transform.scale = Scale;
 	skybox->transform.rotation = XMQuaternionIdentity();
+
+	//set up
+	D3D11_DEPTH_STENCIL_DESC DescDSS;
+	ZeroMemory(&DescDSS, sizeof(D3D11_DEPTH_STENCIL_DESC));
+	DescDSS.DepthEnable = true;
+	DescDSS.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+	DescDSS.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+	hr = g_Device->CreateDepthStencilState(&DescDSS, &g_DSS_Blend);
+	if (FAILED(hr))
+		return hr;
+
+	CD3D11_BLEND_DESC BlendDesc = CD3D11_BLEND_DESC(CD3D11_DEFAULT());
+	BlendDesc.RenderTarget[0].BlendEnable = TRUE;
+	BlendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_SRC_ALPHA;
+	BlendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	BlendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	BlendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	BlendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	BlendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+	hr = g_Device->CreateBlendState(&BlendDesc, &g_BlendState_on);
+
+	BlendDesc.RenderTarget[0].BlendEnable = FALSE;
+	hr = g_Device->CreateBlendState(&BlendDesc, &g_BlendState_off);
+
 
 	D3D11_BUFFER_DESC bd = {};
 
@@ -924,6 +977,20 @@ void CleanUp()
 			delete lineModels[i];
 		}
 	}
+
+	for (int i = 0; i < BlendObj.size(); i++)
+	{
+		if (BlendObj[i])
+		{
+			if (BlendObj[i]->IndexBuffer)
+				BlendObj[i]->IndexBuffer->Release();
+			if (BlendObj[i]->VertBuffer)
+				BlendObj[i]->VertBuffer->Release();
+			if (BlendObj[i]->srv)
+				BlendObj[i]->srv->Release();
+			delete BlendObj[i];
+		}
+	}
 	if (DIKeyboard)DIKeyboard->Unacquire();
 	if (DIMouse)DIMouse->Unacquire();
 	if (DirectInput)DirectInput->Release();
@@ -957,6 +1024,12 @@ void CleanUp()
 	if (g_NoEffect_PS)g_NoEffect_PS->Release();
 	if (g_MultiTex_VS)g_MultiTex_VS->Release();
 	if (g_MultiTex_PS)g_MultiTex_PS->Release();
+	//trensparent release
+	if (FrontCull)FrontCull->Release();
+	if (BackCull)BackCull->Release();
+	if (g_BlendState_on)g_BlendState_on->Release();
+	if (g_BlendState_off)g_BlendState_off->Release();
+	if (g_BlendState_wf)g_BlendState_wf->Release();
 }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -1129,10 +1202,42 @@ void Render()
 		loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, lineModels[i], D3D11_PRIMITIVE_TOPOLOGY_LINELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 	}
 
+	const FLOAT BlendColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	{
+		int i, j;
+		for (i = 0; i < BlendObj.size() - 1; i++)
+		{
+			// Last i elements are already in place    
+			for (j = 0; j < BlendObj.size() - i - 1; j++)
+			{
+				
+				float d1 = XMVectorGetZ(XMVector3Length( BlendObj[j]->transform.pos - camera.transform.pos));
+				float d2 = XMVectorGetZ(XMVector3Length(BlendObj[j + 1]->transform.pos - camera.transform.pos));
+				if (d2 > d1)
+					swap(BlendObj[j], BlendObj[j + 1]);
+			}
+		}
+	}
+
+
 	skybox->transform.pos = camera.transform.pos;
 	g_DevContext->OMSetDepthStencilState(DSLessEqual, 0);
 	g_DevContext->RSSetState(RSCullNone);
 	loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, skybox, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+
+	for (int i = 0; i < BlendObj.size(); i++)
+	{
+		g_DevContext->OMSetDepthStencilState(g_DSS_Blend, 0);
+		g_DevContext->OMSetBlendState(g_BlendState_on, BlendColor, 0xFFFFFFFF);
+		loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, BlendObj[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+		g_DevContext->OMSetDepthStencilState(DSLessEqual, 0);
+	/*	g_DevContext->OMSetBlendState(g_BlendState_on, BlendColor, 0xFFFFFFFF);
+		loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, BlendObj[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);*/
+
+	}
+	g_DevContext->OMSetBlendState(g_BlendState_off, BlendColor, 0xFFFFFFFF);
+
+
 
 
 	g_DevContext->CopyResource(renToTex.Texture2D, renTex.Texture2D);

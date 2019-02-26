@@ -1,14 +1,2 @@
-﻿  main.cpp
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\dinput.h: DIRECTINPUT_VERSION undefined. Defaulting to version 0x0800
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(849): warning C4244: 'initializing': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1008): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1019): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1028): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1036): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1039): warning C4244: 'argument': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1054): warning C4244: '=': conversion from 'double' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1078): warning C4244: 'argument': conversion from 'time_t' to 'unsigned int', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1083): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1084): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\kiang wan chee\desktop\kiang_pp4_fs\pp4_test\pp4_test\main.cpp(1058): warning C4101: 'cb1': unreferenced local variable
+﻿  compilation object save succeeded; see C:\Users\Kiang Wan Chee\Desktop\Kiang_PP4_FS\pp4_test\x64\Debug\Transparent_PS.cso
   pp4_test.vcxproj -> C:\Users\Kiang Wan Chee\Desktop\Kiang_PP4_FS\pp4_test\x64\Debug\pp4_test.exe

@@ -16,8 +16,6 @@ cbuffer ConstantBuffer : register(b0)
 	matrix mView;
 	matrix mProjection;
 	float4 outputColor;
-  
-
 };
 Texture2D ObjTexture : register(t0);
 SamplerState ObjSamplerState : register(s0);
@@ -33,7 +31,7 @@ struct VS_OUTPUT
 	float4 Pos : SV_POSITION;
 	float3 Normal : NORMAL;	
 	float2 TexCoord : TEXCOORD;
-	float3 WorldPos : WORLDPOS;
+    float3 WorldPos : WORLDPOS;
 
 };
 
