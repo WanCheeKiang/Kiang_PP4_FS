@@ -25,6 +25,7 @@ ID3D11VertexShader* g_MultiTex_VS = nullptr;
 ID3D11PixelShader*  g_MultiTex_PS = nullptr;
 ID3D11PixelShader* g_Blend_PS = nullptr;
 ID3D11PixelShader* g_Warp_PS = nullptr;
+ID3D11PixelShader* g_Emissive_PS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -119,7 +120,8 @@ ID3D11BlendState* g_BlendState_on = nullptr;
 ID3D11BlendState* g_BlendState_off = nullptr;
 ID3D11BlendState* g_BlendState_wf = nullptr;
 ID3D11DepthStencilState* g_DSS_Blend;
-
+ID3D11ShaderResourceView* textursrv = nullptr;
+ID3D11ShaderResourceView* textursrv1 = nullptr;
 //main
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
@@ -589,6 +591,13 @@ HRESULT InitDevice()
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Warp_PS);
 	pPSBlob->Release();
 
+
+	pPSBlob = nullptr;
+	hr = CompileShader(L"Light_PS.hlsl", "emissive", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Emissive_PS);
+	pPSBlob->Release();
+
+
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\rabbit.fbx", 3), L"Solid Object Assets\\fur.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
@@ -596,6 +605,7 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Solid Object Assets\\stone_texture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Box_Red2Dark.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"sun.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"LAVA_D.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
@@ -646,6 +656,10 @@ HRESULT InitDevice()
 		case 5:
 			models[i]->vs = g_MultiTex_VS;
 			models[i]->ps = g_MultiTex_PS;
+			break;
+		case 7:
+			models[i]->vs = g_VS;
+			models[i]->ps = g_Emissive_PS;
 			break;
 		default:
 			models[i]->vs = g_VS;
@@ -1052,7 +1066,10 @@ void CleanUp()
 	if (g_BlendState_wf)g_BlendState_wf->Release();
 
 	if(g_Warp_PS)g_Warp_PS->Release();
-}
+	if (g_Emissive_PS)g_Emissive_PS->Release();
+	if (textursrv)textursrv->Release();
+	if (textursrv1)textursrv1->Release();
+ }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -1210,6 +1227,12 @@ void Render()
 			loadObj.MultiTexture(L"cobblestone.dds", g_Device);
 			g_DevContext->PSSetShaderResources(1, 1, &loadObj.textures_srv);
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+			break;
+		case 7:
+			loadObj.MultiTexture(L"LAVA_E.dds", g_Device);
+			g_DevContext->PSSetShaderResources(1, 1, &loadObj.textures_srv);
+			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
+			break;
 		default:
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 			break;

@@ -20,6 +20,7 @@ cbuffer ConstantBuffer : register(b0)
 };
 
 Texture2D ObjTexture : register(t0);
+Texture2D ObjTexture1 : register(t1);
 SamplerState ObjSamplerState : register(s0);
 
 
@@ -110,4 +111,13 @@ float4 main(PS_INPUT input) : SV_TARGET
 float4 PS_Soild(PS_INPUT input) : SV_Target
 {
     return outputColor;
+}
+
+float4 emissive(PS_INPUT input) : SV_Target
+{
+    float4 FinalColor;
+    float4 Color1 = ObjTexture.Sample(ObjSamplerState, input.TexCoord);
+    float4 Color2 = ObjTexture1.Sample(ObjSamplerState, input.TexCoord);
+    FinalColor = Color1 + Color2;
+    return FinalColor;
 }
