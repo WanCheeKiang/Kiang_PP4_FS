@@ -606,6 +606,7 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"Box_Red2Dark.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"sun.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"LAVA_D.dds"));
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Monty1.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
@@ -624,6 +625,8 @@ HRESULT InitDevice()
 	models[5]->transform.pos = XMVectorSet(-8.0f, 1.0f, -4.0f, 1.0f);
 	models[5]->transform.pos = XMVectorSet(-8.0f, 1.0f, -4.0f, 1.0f);
 	models[6]->transform.pos = XMVectorSet(3.0f, 1.0f, -1.5f, 1.0f);
+	models[8]->transform.pos = XMVectorSet(-3.0f, 2.0f, -2.0f, 1.0f);
+
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
 	BlendObj[0]->transform.pos = XMVectorSet(-7.0f, 2.2f, 0.2f, 1.0f);
