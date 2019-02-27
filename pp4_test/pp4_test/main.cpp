@@ -26,6 +26,7 @@ ID3D11PixelShader*  g_MultiTex_PS = nullptr;
 ID3D11PixelShader* g_Blend_PS = nullptr;
 ID3D11PixelShader* g_Warp_PS = nullptr;
 ID3D11PixelShader* g_Emissive_PS = nullptr;
+ID3D11PixelShader* g_SubSerface_PS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -597,6 +598,10 @@ HRESULT InitDevice()
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Emissive_PS);
 	pPSBlob->Release();
 
+	pPSBlob = nullptr;
+	hr = CompileShader(L"SubSerface_PS.hlsl", "main", "ps_4_0", &pPSBlob);
+	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_SubSerface_PS);
+	pPSBlob->Release();
 
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\rabbit.fbx", 3), L"Solid Object Assets\\fur.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
@@ -607,6 +612,7 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"sun.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"LAVA_D.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Monty1.dds"));
+	/*models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), nullptr));*/
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
@@ -626,6 +632,7 @@ HRESULT InitDevice()
 	models[5]->transform.pos = XMVectorSet(-8.0f, 1.0f, -4.0f, 1.0f);
 	models[6]->transform.pos = XMVectorSet(3.0f, 1.0f, -1.5f, 1.0f);
 	models[8]->transform.pos = XMVectorSet(-3.0f, 2.0f, -2.0f, 1.0f);
+	//models[9]->transform.pos = XMVectorSet(-2.0f, 1.0f, -3.0f, 1.0f);
 
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
@@ -664,6 +671,10 @@ HRESULT InitDevice()
 			models[i]->vs = g_VS;
 			models[i]->ps = g_Emissive_PS;
 			break;
+		/*case 9:
+			models[i]->vs = g_VS;
+			models[i]->ps = g_SubSerface_PS;
+			break;*/
 		default:
 			models[i]->vs = g_VS;
 			models[i]->ps = g_PS;
@@ -1072,6 +1083,7 @@ void CleanUp()
 	if (g_Emissive_PS)g_Emissive_PS->Release();
 	if (textursrv)textursrv->Release();
 	if (textursrv1)textursrv1->Release();
+	if (g_SubSerface_PS)g_SubSerface_PS->Release();
  }
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
