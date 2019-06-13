@@ -75,5 +75,6 @@
     <FxCompile Include="PostProcess_PS.hlsl" />
     <FxCompile Include="Transparent_PS.hlsl" />
     <FxCompile Include="SubSerface_PS.hlsl" />
+    <FxCompile Include="HeightMap_VS.hlsl" />
   </ItemGroup>
 </Project>

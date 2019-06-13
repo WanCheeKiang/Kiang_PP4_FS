@@ -27,6 +27,7 @@ ID3D11PixelShader* g_Blend_PS = nullptr;
 ID3D11PixelShader* g_Warp_PS = nullptr;
 ID3D11PixelShader* g_Emissive_PS = nullptr;
 ID3D11PixelShader* g_SubSerface_PS = nullptr;
+ID3D11VertexShader* g_HeightMap_VS = nullptr;
 //Buffer
 ID3D11Buffer* g_indexBUffer = nullptr;
 ID3D11Buffer* g_vertBuffer = nullptr;
@@ -586,7 +587,7 @@ HRESULT InitDevice()
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Blend_PS);
 	pPSBlob->Release();
 	pPSBlob = nullptr;
-	
+
 	pPSBlob = nullptr;
 	hr = CompileShader(L"PostProcess_PS.hlsl", "warp", "ps_4_0", &pPSBlob);
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_Warp_PS);
@@ -603,6 +604,12 @@ HRESULT InitDevice()
 	hr = g_Device->CreatePixelShader(pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_SubSerface_PS);
 	pPSBlob->Release();
 
+	pVSBlob = nullptr;
+	hr = CompileShader(L"HeightMap_VS.hlsl", "main", "vs_4_0", &pVSBlob);
+	hr = g_Device->CreateVertexShader(pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_HeightMap_VS);
+	pVSBlob->Release();
+
+
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\rabbit.fbx", 3), L"Solid Object Assets\\fur.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.LoadObjBuffer(ChestData_Ind, ChestData_vert, Chest_data, Chest_indicies), L"TreasureChestTexture.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\wall.fbx", scale), L"Solid Object Assets\\stone_texture.dds"));
@@ -612,7 +619,9 @@ HRESULT InitDevice()
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"sun.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\cube.fbx", 0.5), L"LAVA_D.dds"));
 	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Monty1.dds"));
-	/*models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\sphere.fbx", scale), nullptr));*/
+	models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane_50.fbx", 0.1), L"Solid Object Assets\\stone_texture.dds"));
+
+	//models.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\DwarfAxe.fbx", 0.1), L"Solid Object Assets\\stone_texture.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
 	BlendObj.push_back(loadObj.CreateModelBuffer(g_Device, loadObj.ImportFbxModel("Solid Object Assets\\plane.fbx", 0.5), L"Fire.dds"));
@@ -633,6 +642,7 @@ HRESULT InitDevice()
 	models[6]->transform.pos = XMVectorSet(3.0f, 1.0f, -1.5f, 1.0f);
 	models[8]->transform.pos = XMVectorSet(-3.0f, 2.0f, -2.0f, 1.0f);
 	//models[9]->transform.pos = XMVectorSet(-2.0f, 1.0f, -3.0f, 1.0f);
+	models[9]->transform.pos = XMVectorSet(-15.0f, 0.0f, -4.0f, 1.0f);
 
 	lineModels[0]->transform.scale = XMVectorSet(10.f, 10.f, 10.f, 1.f);
 
@@ -671,10 +681,10 @@ HRESULT InitDevice()
 			models[i]->vs = g_VS;
 			models[i]->ps = g_Emissive_PS;
 			break;
-		/*case 9:
-			models[i]->vs = g_VS;
-			models[i]->ps = g_SubSerface_PS;
-			break;*/
+		case 9:
+			models[i]->vs = g_HeightMap_VS;
+			models[i]->ps = g_PS;
+			break;
 		default:
 			models[i]->vs = g_VS;
 			models[i]->ps = g_PS;
@@ -904,8 +914,6 @@ float Cam_y = 0.0f;
 
 void UpdateCamera()
 {
-
-
 	camera.transform.pos += xValue * camera.transform.Right();
 	camera.transform.pos += zValue * camera.transform.Forward();
 	float up_angle = XMVectorGetX(XMVector3AngleBetweenVectors(g_Up, camera.transform.Forward()));
@@ -1079,12 +1087,13 @@ void CleanUp()
 	if (g_BlendState_off)g_BlendState_off->Release();
 	if (g_BlendState_wf)g_BlendState_wf->Release();
 
-	if(g_Warp_PS)g_Warp_PS->Release();
+	if (g_Warp_PS)g_Warp_PS->Release();
 	if (g_Emissive_PS)g_Emissive_PS->Release();
 	if (textursrv)textursrv->Release();
 	if (textursrv1)textursrv1->Release();
 	if (g_SubSerface_PS)g_SubSerface_PS->Release();
- }
+	if (g_HeightMap_VS)g_HeightMap_VS->Release();
+}
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -1248,6 +1257,10 @@ void Render()
 			g_DevContext->PSSetShaderResources(1, 1, &loadObj.textures_srv);
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 			break;
+		case 9:
+			loadObj.MultiTexture(L"output.dds", g_Device);
+			g_DevContext->VSSetShaderResources(0, 1, &loadObj.textures_srv);
+			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 		default:
 			loadObj.RenderObject(g_DevContext, camera, constBufferPF, g_SamplerState, models[i], D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST, g_cbPerObjBuffer, g_cbPFbuffer, setColor);
 			break;
@@ -1270,8 +1283,8 @@ void Render()
 			// Last i elements are already in place    
 			for (j = 0; j < BlendObj.size() - i - 1; j++)
 			{
-				
-				float d1 = XMVectorGetZ(XMVector3Length( BlendObj[j]->transform.pos - camera.transform.pos));
+
+				float d1 = XMVectorGetZ(XMVector3Length(BlendObj[j]->transform.pos - camera.transform.pos));
 				float d2 = XMVectorGetZ(XMVector3Length(BlendObj[j + 1]->transform.pos - camera.transform.pos));
 				if (d2 > d1)
 					swap(BlendObj[j], BlendObj[j + 1]);
